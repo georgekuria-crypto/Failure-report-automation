@@ -1,6 +1,7 @@
+
 """
-Enhanced Network Failure and MTTR Dashboard
-Features: Advanced analytics, anomaly detection, SLA tracking, forecasting, and regional mapping
+Production Network Failure and MTTR Dashboard
+Cleaned and Optimized Version
 """
 
 import streamlit as st
@@ -8,14 +9,23 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from io import BytesIO
+
 from visualizations import (
-    is_dark_theme, chart_template, chart_text_color, chart_grid_color,
-    style_figure, format_bar_text, render_chart,
-    CHART_CONFIG, SEQUENTIAL_SCALE, DISCRETE_COLORS
+    style_figure,
+    format_bar_text,
+    render_chart,
+    SEQUENTIAL_SCALE,
+    DISCRETE_COLORS,
 )
+
 from constants import REQUIRED_COLUMNS, OPTIONAL_COLUMNS
 
-# Page configuration
+
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+
 st.set_page_config(
     page_title="Network Failure Analysis Dashboard",
     page_icon="📊",
@@ -24,116 +34,179 @@ st.set_page_config(
 )
 
 
+# =========================================================
+# CUSTOM STYLING
+# =========================================================
+
 st.markdown(
     """
     <style>
+
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 1.25rem;
             padding-bottom: 2rem;
         }
+
         [data-testid="stMetric"] {
             background: color-mix(in srgb, var(--background-color) 88%, var(--text-color) 12%);
             border: 1px solid color-mix(in srgb, var(--background-color) 70%, var(--text-color) 30%);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 14px 16px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
         }
+
         [data-testid="stSidebar"] {
             background: color-mix(in srgb, var(--background-color) 94%, var(--text-color) 6%);
         }
+
         .section-note {
-            color: var(--text-color);
             font-size: 0.95rem;
-            margin-top: -0.35rem;
+            opacity: 0.75;
             margin-bottom: 1rem;
-            opacity: 0.74;
         }
+
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
+# =========================================================
+# DATA LOADING
+# =========================================================
+
 @st.cache_data(show_spinner=False)
 def load_data(file):
+
     if file.name.lower().endswith(".csv"):
         df = pd.read_csv(file)
+
     else:
         df = pd.read_excel(file)
 
     df.columns = df.columns.astype(str).str.strip()
 
+    # Date Parsing
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.dropna(subset=["Date"])
 
-    for column in ["MTTR (Hours)", "Total Monthly Hrs"]:
-        if column in df.columns:
-            df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0)
+    # Numeric Conversion
+    numeric_columns = [
+        "MTTR (Hours)",
+        "Total Monthly Hrs",
+    ]
 
-    for column in df.select_dtypes(include="object").columns:
-        df[column] = df[column].astype(str).str.strip()
-        df[column] = df[column].replace({"": pd.NA, "nan": pd.NA, "NaN": pd.NA})
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    # Clean Object Columns
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.strip()
+            .replace({"": pd.NA, "nan": pd.NA, "NaN": pd.NA})
+        )
 
     return df
 
 
+# =========================================================
+# VALIDATION
+# =========================================================
+
 def validate_columns(df):
-    missing = [column for column in REQUIRED_COLUMNS if column not in df.columns]
+
+    missing = [
+        col for col in REQUIRED_COLUMNS
+        if col not in df.columns
+    ]
+
     if missing:
         st.error(
-            "The uploaded file is missing required columns: "
-            + ", ".join(f"`{column}`" for column in missing)
+            "Missing required columns: "
+            + ", ".join(missing)
         )
         st.stop()
 
 
+# =========================================================
+# FILTERS
+# =========================================================
+
 def multiselect_filter(label, column, data):
+
     options = sorted(data[column].dropna().unique())
-    return st.sidebar.multiselect(label, options=options, default=options)
+
+    return st.sidebar.multiselect(
+        label,
+        options=options,
+        default=options,
+    )
 
 
 def apply_filters(df):
-    st.sidebar.header("Filters")
+
+    st.sidebar.header("Dashboard Filters")
 
     min_date = df["Date"].min().date()
     max_date = df["Date"].max().date()
+
     date_range = st.sidebar.date_input(
-        "Date range",
+        "Date Range",
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date,
     )
 
     if len(date_range) != 2:
-        st.warning("Select both a start date and an end date.")
+        st.warning("Please select a valid start and end date.")
         st.stop()
 
     start_date, end_date = date_range
-    if start_date > end_date:
-        st.warning("Start date must be before end date.")
-        st.stop()
 
-    selected_regions = multiselect_filter("Region", "REGION", df)
-    selected_site_types = multiselect_filter("Site type", "SITE TYPE", df)
-    selected_classes = multiselect_filter("Site classification", "Site Classification", df)
-    selected_visibility = multiselect_filter("Visibility", "Visibility", df)
-    selected_buckets = multiselect_filter("Failure bucket", "Bucket", df)
+    selected_regions = multiselect_filter(
+        "Region",
+        "REGION",
+        df,
+    )
+
+    selected_site_types = multiselect_filter(
+        "Site Type",
+        "SITE TYPE",
+        df,
+    )
+
+    selected_classes = multiselect_filter(
+        "Site Classification",
+        "Site Classification",
+        df,
+    )
+
+    selected_visibility = multiselect_filter(
+        "Visibility",
+        "Visibility",
+        df,
+    )
+
+    selected_buckets = multiselect_filter(
+        "Failure Bucket",
+        "Bucket",
+        df,
+    )
 
     mttr_min = float(df["MTTR (Hours)"].min())
     mttr_max = float(df["MTTR (Hours)"].max())
-    if mttr_min == mttr_max:
-        st.sidebar.caption(f"MTTR range is fixed at {mttr_min:.2f} hours.")
-        mttr_range = (mttr_min, mttr_max)
-    else:
-        mttr_range = st.sidebar.slider(
-            "MTTR range (hours)",
-            min_value=mttr_min,
-            max_value=mttr_max,
-            value=(mttr_min, mttr_max),
-        )
 
-    mask = (
+    mttr_range = st.sidebar.slider(
+        "MTTR Range (Hours)",
+        min_value=mttr_min,
+        max_value=mttr_max,
+        value=(mttr_min, mttr_max),
+    )
+
+    filtered_df = df[
         (df["Date"].dt.date >= start_date)
         & (df["Date"].dt.date <= end_date)
         & (df["REGION"].isin(selected_regions))
@@ -143,64 +216,139 @@ def apply_filters(df):
         & (df["Bucket"].isin(selected_buckets))
         & (df["MTTR (Hours)"] >= mttr_range[0])
         & (df["MTTR (Hours)"] <= mttr_range[1])
+    ].copy()
+
+    return filtered_df
+
+
+# =========================================================
+# KPI SECTION
+# =========================================================
+
+def render_kpis(df):
+
+    total_failures = len(df)
+
+    total_mttr = df["MTTR (Hours)"].sum()
+
+    avg_mttr = df["MTTR (Hours)"].mean()
+
+    affected_sites = df["Site Name"].nunique()
+
+    critical_failures = int(
+        (df["MTTR (Hours)"] > avg_mttr).sum()
     )
-    return df.loc[mask].copy()
+
+    cols = st.columns(5)
+
+    cols[0].metric("Total Failures", f"{total_failures:,}")
+
+    cols[1].metric("Total MTTR", f"{total_mttr:,.2f} hrs")
+
+    cols[2].metric("Average MTTR", f"{avg_mttr:,.2f} hrs")
+
+    cols[3].metric("Affected Sites", f"{affected_sites:,}")
+
+    cols[4].metric("Critical Failures", f"{critical_failures:,}")
 
 
-def aggregate_sum(df, group_column, value_column="MTTR (Hours)", top_n=None):
-    result = (
-        df.groupby(group_column, dropna=False)[value_column]
+# =========================================================
+# EXECUTIVE SUMMARY
+# =========================================================
+
+def render_executive_summary(df):
+
+    worst_region = (
+        df.groupby("REGION")["MTTR (Hours)"]
+        .sum()
+        .idxmax()
+    )
+
+    worst_bucket = (
+        df.groupby("Bucket")["MTTR (Hours)"]
+        .sum()
+        .idxmax()
+    )
+
+    worst_site = (
+        df.groupby("Site Name")["MTTR (Hours)"]
+        .sum()
+        .idxmax()
+    )
+
+    peak_day = (
+        df.groupby(df["Date"].dt.date)["MTTR (Hours)"]
+        .sum()
+        .idxmax()
+    )
+
+    st.info(
+        f"""
+        Highest MTTR Region: {worst_region} |
+        Largest Failure Bucket: {worst_bucket} |
+        Worst Performing Site: {worst_site} |
+        Peak Outage Day: {peak_day}
+        """
+    )
+
+
+# =========================================================
+# AGGREGATION
+# =========================================================
+
+def aggregate_sum(
+    df,
+    group_column,
+    value_column="MTTR (Hours)",
+    top_n=None,
+):
+
+    data = (
+        df.groupby(group_column)[value_column]
         .sum()
         .reset_index()
         .sort_values(value_column, ascending=False)
     )
+
     if top_n:
-        result = result.head(top_n)
-    return result
+        data = data.head(top_n)
+
+    return data
 
 
-def render_kpis(df):
-    total_failures = len(df)
-    total_mttr = df["MTTR (Hours)"].sum()
-    avg_mttr = df["MTTR (Hours)"].mean()
-    affected_sites = df["Site Name"].nunique()
-    high_mttr = int((df["MTTR (Hours)"] > avg_mttr).sum()) if total_failures else 0
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Total failures", f"{total_failures:,}")
-    col2.metric("Total MTTR", f"{total_mttr:,.2f} hrs")
-    col3.metric("Average MTTR", f"{avg_mttr:,.2f} hrs")
-    col4.metric("Affected sites", f"{affected_sites:,}")
-    col5.metric("Above avg MTTR", f"{high_mttr:,}")
-
+# =========================================================
+# CHARTS
+# =========================================================
 
 def chart_mttr_by_bucket(df):
-    if df.empty:
-        return None
+
     data = aggregate_sum(df, "Bucket")
-    data["Failures"] = data["Bucket"].map(df["Bucket"].value_counts())
+
     fig = px.bar(
         data,
         x="Bucket",
         y="MTTR (Hours)",
         color="Bucket",
-        color_discrete_sequence=DISCRETE_COLORS,
         text="MTTR (Hours)",
+        color_discrete_sequence=DISCRETE_COLORS,
         title="Total MTTR by Failure Bucket",
-        hover_data={"Failures": ":,", "MTTR (Hours)": ":,.2f", "Bucket": False},
     )
-    fig.update_layout(xaxis_title="Failure Bucket", yaxis_title="MTTR (Hours)", showlegend=False)
-    fig.update_traces(
-        hovertemplate="<b>%{x}</b><br>MTTR: %{y:,.2f} hrs<br>Failures: %{customdata[0]:,}<extra></extra>"
-    )
+
+    fig.update_layout(showlegend=False)
+
     return format_bar_text(style_figure(fig))
 
 
 def chart_daily_failures(df):
-    if df.empty:
-        return None
-    data = df.groupby(df["Date"].dt.date).size().reset_index(name="Failure Count")
+
+    data = (
+        df.groupby(df["Date"].dt.date)
+        .size()
+        .reset_index(name="Failure Count")
+    )
+
     data["Date"] = pd.to_datetime(data["Date"])
+
     fig = px.line(
         data,
         x="Date",
@@ -208,121 +356,96 @@ def chart_daily_failures(df):
         markers=True,
         title="Daily Failure Count",
     )
-    fig.update_traces(
-        line=dict(width=3, color="#6366f1"),
-        marker=dict(size=8, color="#4f46e5"),
-        hovertemplate="<b>%{x|%d %b %Y}</b><br>Failures: %{y:,}<extra></extra>",
-    )
-    fig.update_layout(xaxis_title="Date", yaxis_title="Failures", hovermode="x unified")
+
     return style_figure(fig)
 
 
 def chart_daily_mttr(df):
-    if df.empty:
-        return None
+
     data = (
         df.groupby(df["Date"].dt.date)
-        .agg({"MTTR (Hours)": "sum", "Site Name": "nunique"})
+        ["MTTR (Hours)"]
+        .sum()
         .reset_index()
-        .rename(columns={"Site Name": "Affected Sites"})
     )
+
     data["Date"] = pd.to_datetime(data["Date"])
+
     fig = px.line(
         data,
         x="Date",
         y="MTTR (Hours)",
         markers=True,
         title="Daily MTTR Trend",
-        hover_data={"Affected Sites": ":,", "MTTR (Hours)": ":,.2f"},
     )
-    avg_daily_mttr = data["MTTR (Hours)"].mean()
-    fig.add_hline(
-        y=avg_daily_mttr,
-        line_dash="dash",
-        line_color="#ef4444",
-        annotation_text=f"Avg {avg_daily_mttr:,.2f} hrs",
-        annotation_position="top left",
-        annotation_font=dict(family="Inter, system-ui, sans-serif", size=11, color="#ef4444")
-    )
-    fig.update_traces(
-        line=dict(width=3, color="#0ea5e9"),
-        marker=dict(size=8, color="#0284c7"),
-        hovertemplate=(
-            "<b>%{x|%d %b %Y}</b><br>MTTR: %{y:,.2f} hrs"
-            "<br>Affected sites: %{customdata[0]:,}<extra></extra>"
-        ),
-    )
-    fig.update_xaxes(rangeslider_visible=True)
-    fig.update_layout(xaxis_title="Date", yaxis_title="MTTR (Hours)", hovermode="x unified")
-    return style_figure(fig, height=460, margin=dict(l=65, r=35, t=75, b=80))
+
+    return style_figure(fig)
 
 
 def chart_daily_activity(df):
-    if df.empty:
-        return None
+
     data = (
         df.groupby(df["Date"].dt.date)
-        .agg({"MTTR (Hours)": "sum", "Site Name": "count"})
+        .agg({
+            "MTTR (Hours)": "sum",
+            "Site Name": "count"
+        })
         .reset_index()
         .rename(columns={"Site Name": "Failure Count"})
     )
+
     data["Date"] = pd.to_datetime(data["Date"])
+
     fig = go.Figure()
+
     fig.add_bar(
         x=data["Date"],
         y=data["Failure Count"],
         name="Failures",
-        marker_color="#8b5cf6",
-        hovertemplate="<b>%{x|%d %b %Y}</b><br>Failures: %{y:,}<extra></extra>",
     )
+
     fig.add_scatter(
         x=data["Date"],
         y=data["MTTR (Hours)"],
-        name="MTTR hours",
-        mode="lines+markers",
+        name="MTTR",
         yaxis="y2",
-        line=dict(color="#10b981", width=3),
-        marker=dict(size=8, color="#059669"),
-        hovertemplate="<b>%{x|%d %b %Y}</b><br>MTTR: %{y:,.2f} hrs<extra></extra>",
+        mode="lines+markers",
     )
+
     fig.update_layout(
-        title="Daily Failures and MTTR Together",
-        xaxis_title="Date",
+        title="Daily Failures vs MTTR",
         yaxis=dict(title="Failures"),
         yaxis2=dict(
-            title="MTTR (Hours)",
+            title="MTTR",
             overlaying="y",
             side="right",
-            showgrid=False,
         ),
-        hovermode="x unified",
-        barmode="group",
     )
-    return style_figure(fig, height=470, margin=dict(l=65, r=65, t=75, b=55))
+
+    return style_figure(fig)
 
 
 def chart_region_mttr(df):
-    if df.empty:
-        return None
+
     data = aggregate_sum(df, "REGION")
+
     fig = px.bar(
         data,
         x="REGION",
         y="MTTR (Hours)",
         color="REGION",
-        color_discrete_sequence=DISCRETE_COLORS,
         text="MTTR (Hours)",
-        title="MTTR by Region",
-        hover_data={"MTTR (Hours)": ":,.2f", "REGION": False},
+        color_discrete_sequence=DISCRETE_COLORS,
+        title="Regional MTTR",
     )
-    fig.update_layout(xaxis_title="Region", yaxis_title="MTTR (Hours)", showlegend=False)
-    fig.update_traces(hovertemplate="<b>%{x}</b><br>MTTR: %{y:,.2f} hrs<extra></extra>")
+
+    fig.update_layout(showlegend=False)
+
     return format_bar_text(style_figure(fig))
 
 
-def chart_region_bucket_heatmap(df):
-    if df.empty:
-        return None
+def chart_region_heatmap(df):
+
     data = df.pivot_table(
         index="REGION",
         columns="Bucket",
@@ -330,47 +453,46 @@ def chart_region_bucket_heatmap(df):
         aggfunc="sum",
         fill_value=0,
     )
+
     fig = px.imshow(
         data,
         color_continuous_scale=SEQUENTIAL_SCALE,
-        aspect="auto",
-        title="Regional MTTR Heatmap by Failure Bucket",
         text_auto=".1f",
-        labels=dict(x="Failure bucket", y="Region", color="MTTR hours"),
+        aspect="auto",
+        title="Regional MTTR Heatmap",
     )
-    fig.update_traces(
-        hovertemplate="<b>%{y}</b><br>Bucket: %{x}<br>MTTR: %{z:,.2f} hrs<extra></extra>"
-    )
-    return style_figure(fig, height=500, margin=dict(l=90, r=80, t=75, b=55), showgrid=False)
+
+    return style_figure(fig)
 
 
 def chart_site_mttr(df, top_n=15):
-    if df.empty:
-        return None
-    data = aggregate_sum(df, "Site Name", top_n=top_n)
+
+    data = aggregate_sum(
+        df,
+        "Site Name",
+        top_n=top_n,
+    )
+
     fig = px.bar(
         data,
         x="MTTR (Hours)",
         y="Site Name",
         orientation="h",
         color="MTTR (Hours)",
-        color_continuous_scale=SEQUENTIAL_SCALE,
         text="MTTR (Hours)",
+        color_continuous_scale=SEQUENTIAL_SCALE,
         title=f"Top {top_n} Sites by MTTR",
-        hover_data={"MTTR (Hours)": ":,.2f", "Site Name": False},
     )
+
     fig.update_layout(
-        yaxis={"categoryorder": "total ascending"}, 
-        xaxis_title="MTTR (Hours)",
-        coloraxis_showscale=False
+        yaxis={"categoryorder": "total ascending"}
     )
-    fig.update_traces(hovertemplate="<b>%{y}</b><br>MTTR: %{x:,.2f} hrs<extra></extra>")
-    return format_bar_text(style_figure(fig, height=560, margin=dict(l=140, r=35, t=75, b=55)))
+
+    return format_bar_text(style_figure(fig, height=600))
 
 
-def chart_site_failures(df, top_n=20):
-    if df.empty:
-        return None
+def chart_site_failures(df, top_n=15):
+
     data = (
         df.groupby("Site Name")
         .size()
@@ -378,392 +500,205 @@ def chart_site_failures(df, top_n=20):
         .sort_values("Failure Count", ascending=False)
         .head(top_n)
     )
+
     fig = px.bar(
         data,
         x="Failure Count",
         y="Site Name",
         orientation="h",
         color="Failure Count",
-        color_continuous_scale=SEQUENTIAL_SCALE,
         text="Failure Count",
+        color_continuous_scale=SEQUENTIAL_SCALE,
         title=f"Top {top_n} Sites by Failure Frequency",
-        hover_data={"Failure Count": ":,", "Site Name": False},
     )
-    fig.update_traces(textposition="outside", cliponaxis=False)
+
     fig.update_layout(
-        yaxis={"categoryorder": "total ascending"}, 
-        xaxis_title="Number of Failures",
-        coloraxis_showscale=False
+        yaxis={"categoryorder": "total ascending"}
     )
-    fig.update_traces(hovertemplate="<b>%{y}</b><br>Failures: %{x:,}<extra></extra>")
-    return style_figure(fig, height=620, margin=dict(l=140, r=35, t=75, b=55))
+
+    return style_figure(fig, height=600)
 
 
-def chart_site_type_mttr(df):
-    if df.empty:
-        return None
-    data = aggregate_sum(df, "SITE TYPE")
-    fig = px.bar(
-        data,
-        x="SITE TYPE",
-        y="MTTR (Hours)",
-        color="SITE TYPE",
-        color_discrete_sequence=DISCRETE_COLORS,
-        text="MTTR (Hours)",
-        title="MTTR by Site Type",
-        hover_data={"MTTR (Hours)": ":,.2f", "SITE TYPE": False},
-    )
-    fig.update_layout(xaxis_title="Site Type", yaxis_title="MTTR (Hours)", showlegend=False)
-    fig.update_traces(hovertemplate="<b>%{x}</b><br>MTTR: %{y:,.2f} hrs<extra></extra>")
-    return format_bar_text(style_figure(fig))
+# =========================================================
+# EXCEL EXPORT
+# =========================================================
 
+def generate_excel(df):
 
-def chart_site_scatter(df):
-    if "Total Monthly Hrs" not in df.columns:
-        return None
+    output = BytesIO()
 
-    data = (
-        df.groupby(["Site Name", "Visibility", "REGION"], dropna=False)
-        .agg({"MTTR (Hours)": "sum", "Total Monthly Hrs": "max"})
-        .reset_index()
-    )
-    fig = px.scatter(
-        data,
-        x="Total Monthly Hrs",
-        y="MTTR (Hours)",
-        color="Visibility",
-        size="MTTR (Hours)",
-        hover_name="Site Name",
-        color_discrete_sequence=DISCRETE_COLORS,
-        hover_data={"REGION": True, "Total Monthly Hrs": ":,.2f", "MTTR (Hours)": ":,.2f"},
-        title="Site MTTR vs Monthly Hours",
-    )
-    fig.update_traces(marker=dict(line=dict(width=1, color=chart_text_color())))
-    fig.update_layout(
-        xaxis_title="Total monthly hours",
-        yaxis_title="MTTR hours",
-        hovermode="closest",
-    )
-    return style_figure(fig, height=520)
+    with pd.ExcelWriter(
+        output,
+        engine="openpyxl"
+    ) as writer:
 
-
-def chart_outage_breakdown(df):
-    if df.empty:
-        return None
-    data = df.dropna(subset=["REGION", "Bucket", "SITE TYPE"])
-    fig = px.sunburst(
-        data,
-        path=["REGION", "Bucket", "SITE TYPE"],
-        values="MTTR (Hours)",
-        color="MTTR (Hours)",
-        color_continuous_scale=SEQUENTIAL_SCALE,
-        title="Outage Breakdown: Region, Bucket, and Site Type",
-    )
-    fig.update_traces(
-        hovertemplate="<b>%{label}</b><br>MTTR: %{value:,.2f} hrs<br>Share: %{percentParent:.1%}<extra></extra>"
-    )
-    return style_figure(fig, height=560, showgrid=False)
-
-
-def chart_daily_reasons(df):
-    if df.empty:
-        return None
-    data = (
-        df.groupby([df["Date"].dt.date, "Site Name", "Bucket"])
-        .size()
-        .reset_index(name="Count")
-    )
-    data["Date"] = data["Date"].astype(str)
-    fig = px.sunburst(
-        data,
-        path=["Date", "Site Name", "Bucket"],
-        values="Count",
-        title="Daily Site Failures and Reasons",
-        color="Count",
-        color_continuous_scale=SEQUENTIAL_SCALE,
-    )
-    fig.update_traces(
-        hovertemplate="<b>%{label}</b><br>Failures: %{value:,}<br>Share: %{percentParent:.1%}<extra></extra>"
-    )
-    return style_figure(fig, height=620, showgrid=False)
-
-
-def chart_resolution_flow(df):
-    required = ["Source of Power", "Bucket", "Status"]
-    if any(column not in df.columns for column in required):
-        return None
-
-    data = df[required].dropna()
-    if data.empty:
-        return None
-
-    dimensions = []
-    labels = {
-        "Source of Power": "Power source",
-        "Bucket": "Failure bucket",
-        "Status": "Ticket status",
-    }
-    for col in required:
-        categories = data[col].astype("category")
-        dimensions.append(
-            go.parcats.Dimension(
-                values=categories,
-                label=labels.get(col, col),
-            )
+        df.to_excel(
+            writer,
+            index=False,
+            sheet_name="Filtered Data"
         )
 
-    # Use direct mapping to discrete status colors for ticket status lines
-    status_colors = {
-        "Resolved": "#10b981",       # Emerald Green
-        "In Progress": "#0ea5e9",    # Sky Blue
-        "Pending Vendor": "#f59e0b", # Amber
-        "Investigating": "#8b5cf6",  # Purple
-        "Open": "#3b82f6",           # Blue
-        "Escalated": "#ef4444",      # Red
-    }
-    colors = [status_colors.get(s, "#64748b") for s in data["Status"]]
-
-    fig = go.Figure(
-        go.Parcats(
-            dimensions=dimensions,
-            line=dict(
-                color=colors,
-                showscale=False,
-            ),
-            hoveron="color",
-            hoverinfo="count+probability",
-            arrangement="freeform",
-        )
-    )
-    fig.update_layout(
-        title_text="Resolution Flow: Power Source → Failure Bucket → Ticket Status"
-    )
-    return style_figure(fig, height=500, margin=dict(l=80, r=80, t=75, b=55), showgrid=False)
+    return output.getvalue()
 
 
-def render_missing_optional_notice(df):
-    missing_optional = [column for column in OPTIONAL_COLUMNS if column not in df.columns]
-    if missing_optional:
-        st.sidebar.caption(
-            "Optional visuals skipped when these fields are absent: "
-            + ", ".join(missing_optional)
-        )
-
+# =========================================================
+# MAIN APP
+# =========================================================
 
 def main():
+
     st.title("Network Failure and MTTR Dashboard")
-    st.caption("Daily operations view for filtering, ranking, and explaining network failures.")
+
+    st.caption(
+        "Operational analytics dashboard for telecom network failure monitoring."
+    )
 
     uploaded_file = st.sidebar.file_uploader(
-        "Upload failure report",
-        type=["xlsx", "xls", "csv"],
-        help="Upload an Excel or CSV report with Date, Region, Site, Bucket, and MTTR fields.",
+        "Upload Failure Report",
+        type=["csv", "xlsx", "xls"],
     )
 
     if uploaded_file is None:
-        st.info("Upload a failure report from the sidebar to begin analysis.")
+        st.info("Upload a report to begin analysis.")
         return
 
     df = load_data(uploaded_file)
+
     validate_columns(df)
 
     if df.empty:
-        st.warning("The uploaded file has no valid rows after date cleaning.")
+        st.warning("No valid data found.")
         return
 
-    render_missing_optional_notice(df)
     filtered_df = apply_filters(df)
 
     if filtered_df.empty:
-        st.warning("No data is available for the selected filters.")
+        st.warning(
+            "No data matches the current filters. "
+            "Try expanding the filter selections."
+        )
         return
 
+    # Sidebar Summary
+    st.sidebar.divider()
+
+    st.sidebar.metric(
+        "Filtered Records",
+        f"{len(filtered_df):,}"
+    )
+
+    st.sidebar.metric(
+        "Regions",
+        filtered_df["REGION"].nunique()
+    )
+
+    st.sidebar.metric(
+        "Sites",
+        filtered_df["Site Name"].nunique()
+    )
+
+    # KPIs
     render_kpis(filtered_df)
+
     st.divider()
 
-    overview_tab, regional_tab, site_tab, patterns_tab, flow_tab, data_tab = st.tabs(
+    render_executive_summary(filtered_df)
+
+    # Tabs
+    overview_tab, regional_tab, site_tab, export_tab = st.tabs(
         [
             "Overview",
-            "Regional analysis",
-            "Site performance",
-            "Failure patterns",
-            "Resolution and SLA",
-            "Data export",
+            "Regional Analysis",
+            "Site Performance",
+            "Data Export",
         ]
     )
 
+    # =====================================================
+    # OVERVIEW TAB
+    # =====================================================
+
     with overview_tab:
-        st.subheader("Executive overview")
-        st.markdown(
-            (
-                '<p class="section-note">Use this view to understand the overall volume, '
-                "MTTR trend, and largest failure drivers.</p>"
-            ),
-            unsafe_allow_html=True,
-        )
+
         col1, col2 = st.columns(2)
+
         with col1:
-            chart = chart_mttr_by_bucket(filtered_df)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for MTTR by bucket.")
+            render_chart(chart_mttr_by_bucket(filtered_df))
+
         with col2:
-            chart = chart_daily_failures(filtered_df)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for daily failures.")
+            render_chart(chart_daily_failures(filtered_df))
 
-        chart = chart_daily_activity(filtered_df)
-        if chart is not None:
-            render_chart(chart)
-        else:
-            st.info("No data available for daily activity.")
+        render_chart(chart_daily_activity(filtered_df))
 
-        chart = chart_daily_mttr(filtered_df)
-        if chart is not None:
-            render_chart(chart)
-        else:
-            st.info("No data available for daily MTTR.")
+        render_chart(chart_daily_mttr(filtered_df))
+
+    # =====================================================
+    # REGIONAL TAB
+    # =====================================================
 
     with regional_tab:
-        st.subheader("Regional analysis")
-        st.markdown(
-            (
-                '<p class="section-note">Compare total MTTR across regions and identify '
-                "which failure buckets drive regional impact.</p>"
-            ),
-            unsafe_allow_html=True,
-        )
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            chart = chart_region_mttr(filtered_df)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for regional MTTR.")
-        with col2:
-            chart = chart_site_type_mttr(filtered_df)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for site type MTTR.")
 
-        chart = chart_region_bucket_heatmap(filtered_df)
-        if chart is not None:
-            render_chart(chart)
-        else:
-            st.info("No data available for regional heatmap.")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            render_chart(chart_region_mttr(filtered_df))
+
+        with col2:
+            render_chart(chart_region_heatmap(filtered_df))
+
+    # =====================================================
+    # SITE TAB
+    # =====================================================
 
     with site_tab:
-        st.subheader("Site performance")
-        st.markdown(
-            (
-                '<p class="section-note">Find sites causing the highest MTTR and sites '
-                "with repeated failure events.</p>"
-            ),
-            unsafe_allow_html=True,
+
+        top_n = st.slider(
+            "Sites to Display",
+            min_value=5,
+            max_value=50,
+            value=15,
         )
-        site_count = filtered_df["Site Name"].nunique()
-        top_site_count = st.slider(
-            "Sites to show",
-            min_value=1 if site_count < 5 else 5,
-            max_value=max(1, min(50, site_count)),
-            value=max(1, min(15, site_count)),
-        )
+
         col1, col2 = st.columns(2)
+
         with col1:
-            chart = chart_site_mttr(filtered_df, top_n=top_site_count)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for site MTTR.")
+            render_chart(
+                chart_site_mttr(
+                    filtered_df,
+                    top_n,
+                )
+            )
+
         with col2:
-            chart = chart_site_failures(filtered_df, top_n=top_site_count)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for site failures.")
+            render_chart(
+                chart_site_failures(
+                    filtered_df,
+                    top_n,
+                )
+            )
 
-        scatter = chart_site_scatter(filtered_df)
-        if scatter is not None:
-            render_chart(scatter)
-        else:
-            st.info("Add `Total Monthly Hrs` to the report to view the site MTTR scatter plot.")
+    # =====================================================
+    # EXPORT TAB
+    # =====================================================
 
-    with patterns_tab:
-        st.subheader("Failure patterns")
-        st.markdown(
-            (
-                '<p class="section-note">Explore how failures are distributed by region, '
-                "bucket, site type, site, and day.</p>"
-            ),
-            unsafe_allow_html=True,
-        )
-        col1, col2 = st.columns(2)
-        with col1:
-            chart = chart_outage_breakdown(filtered_df)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for outage breakdown.")
-        with col2:
-            chart = chart_daily_reasons(filtered_df)
-            if chart is not None:
-                render_chart(chart)
-            else:
-                st.info("No data available for daily reasons.")
+    with export_tab:
 
-    with flow_tab:
-        st.subheader("Resolution and SLA")
-        st.markdown(
-            (
-                '<p class="section-note">Review ticket status flow and spot high-MTTR '
-                "records that may need attention.</p>"
-            ),
-            unsafe_allow_html=True,
-        )
-        flow = chart_resolution_flow(filtered_df)
-        if flow is not None:
-            render_chart(flow)
-        else:
-            st.info("Add `Source of Power` and `Status` to the report to view resolution flow.")
-
-        avg_mttr = filtered_df["MTTR (Hours)"].mean()
-        high_mttr_df = filtered_df[filtered_df["MTTR (Hours)"] > avg_mttr].sort_values(
-            "MTTR (Hours)",
-            ascending=False,
-        )
-        high_mttr_columns = [
-            column
-            for column in ["Date", "Site Name", "REGION", "Bucket", "MTTR (Hours)", "Status"]
-            if column in high_mttr_df.columns
-        ]
         st.dataframe(
-            high_mttr_df[high_mttr_columns],
+            filtered_df.head(1000),
             use_container_width=True,
             hide_index=True,
         )
 
-    with data_tab:
-        st.subheader("Filtered data")
-        st.markdown(
-            (
-                '<p class="section-note">Inspect the filtered records and export the '
-                "current analysis dataset.</p>"
-            ),
-            unsafe_allow_html=True,
-        )
-        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-        csv = filtered_df.to_csv(index=False).encode("utf-8")
+        excel_data = generate_excel(filtered_df)
+
         st.download_button(
-            label="Download filtered CSV",
-            data=csv,
-            file_name="filtered_failure_report.csv",
-            mime="text/csv",
+            label="Download Excel Report",
+            data=excel_data,
+            file_name="network_failure_analysis.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
 
 if __name__ == "__main__":
     main()
+
