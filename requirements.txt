@@ -3,7 +3,7 @@ pandas>=1.5.0
 numpy>=1.24.0
 plotly>=5.14.0
 scipy>=1.10.0
-openpyxl>=3.10.0
+openpyxl>=3.1.5
 # Optional: Geographic mapping features
 # folium>=0.14.0
 # streamlit-folium>=0.11.0
