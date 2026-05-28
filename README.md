@@ -262,7 +262,7 @@ margin=dict(l=75, r=35, t=100, b=80)
 
 | File | Purpose |
 |------|---------|
-| `app_enhanced.py` | Main application (recommended version) |
+| `app_lovable.py` | Main application (recommended version) |
 | `analytics.py` | Advanced analytics module |
 | `visualizations.py` | Chart and visualization functions |
 | `utils.py` | Utility and helper functions |
@@ -274,7 +274,7 @@ margin=dict(l=75, r=35, t=100, b=80)
 
 ### Local Development
 ```bash
-streamlit run app_enhanced.py
+streamlit run app_lovable.py
 ```
 
 ### Production Setup
