@@ -1,33 +1,24 @@
+"""
+Enhanced Network Failure and MTTR Dashboard
+Features: Advanced analytics, anomaly detection, SLA tracking, forecasting, and regional mapping
+"""
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from visualizations import (
+    is_dark_theme, chart_template, chart_text_color, chart_grid_color,
+    style_figure, format_bar_text, render_chart,
+    CHART_CONFIG, SEQUENTIAL_SCALE, DISCRETE_COLORS
+)
+from constants import REQUIRED_COLUMNS, OPTIONAL_COLUMNS
 
-REQUIRED_COLUMNS = [
-    "Date",
-    "REGION",
-    "SITE TYPE",
-    "Site Classification",
-    "Visibility",
-    "Bucket",
-    "MTTR (Hours)",
-    "Site Name",
-]
-
-OPTIONAL_COLUMNS = [
-    "Total Monthly Hrs",
-    "Source of Power",
-    "Status",
-]
-
-SEQUENTIAL_SCALE = "Viridis"
-DISCRETE_COLORS = px.colors.qualitative.Safe
-
-
+# Page configuration
 st.set_page_config(
-    page_title="Network Failure Analysis",
-    page_icon="bar_chart",
+    page_title="Network Failure Analysis Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -61,71 +52,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-CHART_CONFIG = {
-    "displayModeBar": True,
-    "displaylogo": False,
-    "scrollZoom": True,
-    "responsive": True,
-    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-}
-
-
-def is_dark_theme():
-    return st.get_option("theme.base") == "dark"
-
-
-def chart_template():
-    return "plotly_dark" if is_dark_theme() else "plotly_white"
-
-
-def chart_text_color():
-    return "#f8fafc" if is_dark_theme() else "#0f172a"
-
-
-def chart_grid_color():
-    return "rgba(226, 232, 240, 0.20)" if is_dark_theme() else "#e5e7eb"
-
-
-def style_figure(fig, height=430):
-    fig.update_layout(
-        template=chart_template(),
-        height=height,
-        margin=dict(l=20, r=20, t=70, b=35),
-        font=dict(size=13, color=chart_text_color()),
-        title=dict(font=dict(size=17), x=0.02, xanchor="left"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        hoverlabel=dict(
-            bgcolor="#111827" if is_dark_theme() else "#ffffff",
-            font=dict(color="#f8fafc" if is_dark_theme() else "#0f172a"),
-            bordercolor=chart_grid_color(),
-        ),
-        coloraxis_colorbar=dict(title_font=dict(color=chart_text_color())),
-    )
-    fig.update_xaxes(showgrid=True, gridcolor=chart_grid_color(), zeroline=False)
-    fig.update_yaxes(showgrid=True, gridcolor=chart_grid_color(), zeroline=False)
-    return fig
-
-
-def format_bar_text(fig):
-    fig.update_traces(
-        texttemplate="%{text:,.2f}",
-        textposition="auto",
-        cliponaxis=False,
-    )
-    return fig
-
-
-def render_chart(fig, **kwargs):
-    st.plotly_chart(
-        fig,
-        use_container_width=True,
-        config=CHART_CONFIG,
-        **kwargs,
-    )
 
 
 @st.cache_data(show_spinner=False)
@@ -249,19 +175,21 @@ def render_kpis(df):
 
 
 def chart_mttr_by_bucket(df):
+    if df.empty:
+        return None
     data = aggregate_sum(df, "Bucket")
     data["Failures"] = data["Bucket"].map(df["Bucket"].value_counts())
     fig = px.bar(
         data,
         x="Bucket",
         y="MTTR (Hours)",
-        color="MTTR (Hours)",
-        color_continuous_scale=SEQUENTIAL_SCALE,
+        color="Bucket",
+        color_discrete_sequence=DISCRETE_COLORS,
         text="MTTR (Hours)",
         title="Total MTTR by Failure Bucket",
         hover_data={"Failures": ":,", "MTTR (Hours)": ":,.2f", "Bucket": False},
     )
-    fig.update_layout(xaxis_title="Failure bucket", yaxis_title="MTTR hours")
+    fig.update_layout(xaxis_title="Failure Bucket", yaxis_title="MTTR (Hours)", showlegend=False)
     fig.update_traces(
         hovertemplate="<b>%{x}</b><br>MTTR: %{y:,.2f} hrs<br>Failures: %{customdata[0]:,}<extra></extra>"
     )
@@ -269,6 +197,8 @@ def chart_mttr_by_bucket(df):
 
 
 def chart_daily_failures(df):
+    if df.empty:
+        return None
     data = df.groupby(df["Date"].dt.date).size().reset_index(name="Failure Count")
     data["Date"] = pd.to_datetime(data["Date"])
     fig = px.line(
@@ -279,8 +209,8 @@ def chart_daily_failures(df):
         title="Daily Failure Count",
     )
     fig.update_traces(
-        line=dict(width=3),
-        marker=dict(size=8),
+        line=dict(width=3, color="#6366f1"),
+        marker=dict(size=8, color="#4f46e5"),
         hovertemplate="<b>%{x|%d %b %Y}</b><br>Failures: %{y:,}<extra></extra>",
     )
     fig.update_layout(xaxis_title="Date", yaxis_title="Failures", hovermode="x unified")
@@ -288,6 +218,8 @@ def chart_daily_failures(df):
 
 
 def chart_daily_mttr(df):
+    if df.empty:
+        return None
     data = (
         df.groupby(df["Date"].dt.date)
         .agg({"MTTR (Hours)": "sum", "Site Name": "nunique"})
@@ -307,24 +239,27 @@ def chart_daily_mttr(df):
     fig.add_hline(
         y=avg_daily_mttr,
         line_dash="dash",
-        line_color="#f97316",
+        line_color="#ef4444",
         annotation_text=f"Avg {avg_daily_mttr:,.2f} hrs",
         annotation_position="top left",
+        annotation_font=dict(family="Inter, system-ui, sans-serif", size=11, color="#ef4444")
     )
     fig.update_traces(
-        line=dict(width=3),
-        marker=dict(size=8),
+        line=dict(width=3, color="#0ea5e9"),
+        marker=dict(size=8, color="#0284c7"),
         hovertemplate=(
             "<b>%{x|%d %b %Y}</b><br>MTTR: %{y:,.2f} hrs"
             "<br>Affected sites: %{customdata[0]:,}<extra></extra>"
         ),
     )
     fig.update_xaxes(rangeslider_visible=True)
-    fig.update_layout(xaxis_title="Date", yaxis_title="MTTR hours", hovermode="x unified")
-    return style_figure(fig, height=460)
+    fig.update_layout(xaxis_title="Date", yaxis_title="MTTR (Hours)", hovermode="x unified")
+    return style_figure(fig, height=460, margin=dict(l=65, r=35, t=75, b=80))
 
 
 def chart_daily_activity(df):
+    if df.empty:
+        return None
     data = (
         df.groupby(df["Date"].dt.date)
         .agg({"MTTR (Hours)": "sum", "Site Name": "count"})
@@ -337,7 +272,7 @@ def chart_daily_activity(df):
         x=data["Date"],
         y=data["Failure Count"],
         name="Failures",
-        marker_color="#3b82f6",
+        marker_color="#8b5cf6",
         hovertemplate="<b>%{x|%d %b %Y}</b><br>Failures: %{y:,}<extra></extra>",
     )
     fig.add_scatter(
@@ -346,8 +281,8 @@ def chart_daily_activity(df):
         name="MTTR hours",
         mode="lines+markers",
         yaxis="y2",
-        line=dict(color="#f97316", width=3),
-        marker=dict(size=8),
+        line=dict(color="#10b981", width=3),
+        marker=dict(size=8, color="#059669"),
         hovertemplate="<b>%{x|%d %b %Y}</b><br>MTTR: %{y:,.2f} hrs<extra></extra>",
     )
     fig.update_layout(
@@ -355,7 +290,7 @@ def chart_daily_activity(df):
         xaxis_title="Date",
         yaxis=dict(title="Failures"),
         yaxis2=dict(
-            title="MTTR hours",
+            title="MTTR (Hours)",
             overlaying="y",
             side="right",
             showgrid=False,
@@ -363,27 +298,31 @@ def chart_daily_activity(df):
         hovermode="x unified",
         barmode="group",
     )
-    return style_figure(fig, height=470)
+    return style_figure(fig, height=470, margin=dict(l=65, r=65, t=75, b=55))
 
 
 def chart_region_mttr(df):
+    if df.empty:
+        return None
     data = aggregate_sum(df, "REGION")
     fig = px.bar(
         data,
         x="REGION",
         y="MTTR (Hours)",
-        color="MTTR (Hours)",
-        color_continuous_scale=SEQUENTIAL_SCALE,
+        color="REGION",
+        color_discrete_sequence=DISCRETE_COLORS,
         text="MTTR (Hours)",
         title="MTTR by Region",
         hover_data={"MTTR (Hours)": ":,.2f", "REGION": False},
     )
-    fig.update_layout(xaxis_title="Region", yaxis_title="MTTR hours")
+    fig.update_layout(xaxis_title="Region", yaxis_title="MTTR (Hours)", showlegend=False)
     fig.update_traces(hovertemplate="<b>%{x}</b><br>MTTR: %{y:,.2f} hrs<extra></extra>")
     return format_bar_text(style_figure(fig))
 
 
 def chart_region_bucket_heatmap(df):
+    if df.empty:
+        return None
     data = df.pivot_table(
         index="REGION",
         columns="Bucket",
@@ -402,10 +341,12 @@ def chart_region_bucket_heatmap(df):
     fig.update_traces(
         hovertemplate="<b>%{y}</b><br>Bucket: %{x}<br>MTTR: %{z:,.2f} hrs<extra></extra>"
     )
-    return style_figure(fig, height=500)
+    return style_figure(fig, height=500, margin=dict(l=90, r=80, t=75, b=55), showgrid=False)
 
 
 def chart_site_mttr(df, top_n=15):
+    if df.empty:
+        return None
     data = aggregate_sum(df, "Site Name", top_n=top_n)
     fig = px.bar(
         data,
@@ -418,12 +359,18 @@ def chart_site_mttr(df, top_n=15):
         title=f"Top {top_n} Sites by MTTR",
         hover_data={"MTTR (Hours)": ":,.2f", "Site Name": False},
     )
-    fig.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="MTTR hours")
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"}, 
+        xaxis_title="MTTR (Hours)",
+        coloraxis_showscale=False
+    )
     fig.update_traces(hovertemplate="<b>%{y}</b><br>MTTR: %{x:,.2f} hrs<extra></extra>")
-    return format_bar_text(style_figure(fig, height=560))
+    return format_bar_text(style_figure(fig, height=560, margin=dict(l=140, r=35, t=75, b=55)))
 
 
 def chart_site_failures(df, top_n=20):
+    if df.empty:
+        return None
     data = (
         df.groupby("Site Name")
         .size()
@@ -443,24 +390,30 @@ def chart_site_failures(df, top_n=20):
         hover_data={"Failure Count": ":,", "Site Name": False},
     )
     fig.update_traces(textposition="outside", cliponaxis=False)
-    fig.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Failures")
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"}, 
+        xaxis_title="Number of Failures",
+        coloraxis_showscale=False
+    )
     fig.update_traces(hovertemplate="<b>%{y}</b><br>Failures: %{x:,}<extra></extra>")
-    return style_figure(fig, height=620)
+    return style_figure(fig, height=620, margin=dict(l=140, r=35, t=75, b=55))
 
 
 def chart_site_type_mttr(df):
+    if df.empty:
+        return None
     data = aggregate_sum(df, "SITE TYPE")
     fig = px.bar(
         data,
         x="SITE TYPE",
         y="MTTR (Hours)",
-        color="MTTR (Hours)",
-        color_continuous_scale=SEQUENTIAL_SCALE,
+        color="SITE TYPE",
+        color_discrete_sequence=DISCRETE_COLORS,
         text="MTTR (Hours)",
         title="MTTR by Site Type",
         hover_data={"MTTR (Hours)": ":,.2f", "SITE TYPE": False},
     )
-    fig.update_layout(xaxis_title="Site type", yaxis_title="MTTR hours")
+    fig.update_layout(xaxis_title="Site Type", yaxis_title="MTTR (Hours)", showlegend=False)
     fig.update_traces(hovertemplate="<b>%{x}</b><br>MTTR: %{y:,.2f} hrs<extra></extra>")
     return format_bar_text(style_figure(fig))
 
@@ -495,6 +448,8 @@ def chart_site_scatter(df):
 
 
 def chart_outage_breakdown(df):
+    if df.empty:
+        return None
     data = df.dropna(subset=["REGION", "Bucket", "SITE TYPE"])
     fig = px.sunburst(
         data,
@@ -507,10 +462,12 @@ def chart_outage_breakdown(df):
     fig.update_traces(
         hovertemplate="<b>%{label}</b><br>MTTR: %{value:,.2f} hrs<br>Share: %{percentParent:.1%}<extra></extra>"
     )
-    return style_figure(fig, height=560)
+    return style_figure(fig, height=560, showgrid=False)
 
 
 def chart_daily_reasons(df):
+    if df.empty:
+        return None
     data = (
         df.groupby([df["Date"].dt.date, "Site Name", "Bucket"])
         .size()
@@ -528,7 +485,7 @@ def chart_daily_reasons(df):
     fig.update_traces(
         hovertemplate="<b>%{label}</b><br>Failures: %{value:,}<br>Share: %{percentParent:.1%}<extra></extra>"
     )
-    return style_figure(fig, height=620)
+    return style_figure(fig, height=620, showgrid=False)
 
 
 def chart_resolution_flow(df):
@@ -540,19 +497,48 @@ def chart_resolution_flow(df):
     if data.empty:
         return None
 
-    fig = px.parallel_categories(
-        data,
-        dimensions=required,
-        color=data["Status"].astype("category").cat.codes,
-        color_continuous_scale=SEQUENTIAL_SCALE,
-        labels={
-            "Source of Power": "Power source",
-            "Bucket": "Failure bucket",
-            "Status": "Ticket status",
-        },
-        title="Resolution Flow",
+    dimensions = []
+    labels = {
+        "Source of Power": "Power source",
+        "Bucket": "Failure bucket",
+        "Status": "Ticket status",
+    }
+    for col in required:
+        categories = data[col].astype("category")
+        dimensions.append(
+            go.parcats.Dimension(
+                values=categories,
+                label=labels.get(col, col),
+            )
+        )
+
+    # Use direct mapping to discrete status colors for ticket status lines
+    status_colors = {
+        "Resolved": "#10b981",       # Emerald Green
+        "In Progress": "#0ea5e9",    # Sky Blue
+        "Pending Vendor": "#f59e0b", # Amber
+        "Investigating": "#8b5cf6",  # Purple
+        "Open": "#3b82f6",           # Blue
+        "Escalated": "#ef4444",      # Red
+    }
+    colors = [status_colors.get(s, "#64748b") for s in data["Status"]]
+
+    fig = go.Figure(
+        go.Parcats(
+            dimensions=dimensions,
+            line=dict(
+                color=colors,
+                showscale=False,
+            ),
+            hoveron="color",
+            hoverinfo="count+probability",
+            arrangement="freeform",
+        )
     )
-    return style_figure(fig, height=500)
+    fig.update_layout(
+        title_text="Resolution Flow: Power Source → Failure Bucket → Ticket Status"
+    )
+    return style_figure(fig, height=500, margin=dict(l=80, r=80, t=75, b=55), showgrid=False)
 
 
 def render_missing_optional_notice(df):
@@ -617,11 +603,29 @@ def main():
         )
         col1, col2 = st.columns(2)
         with col1:
-            render_chart(chart_mttr_by_bucket(filtered_df))
+            chart = chart_mttr_by_bucket(filtered_df)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for MTTR by bucket.")
         with col2:
-            render_chart(chart_daily_failures(filtered_df))
-        render_chart(chart_daily_activity(filtered_df))
-        render_chart(chart_daily_mttr(filtered_df))
+            chart = chart_daily_failures(filtered_df)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for daily failures.")
+
+        chart = chart_daily_activity(filtered_df)
+        if chart is not None:
+            render_chart(chart)
+        else:
+            st.info("No data available for daily activity.")
+
+        chart = chart_daily_mttr(filtered_df)
+        if chart is not None:
+            render_chart(chart)
+        else:
+            st.info("No data available for daily MTTR.")
 
     with regional_tab:
         st.subheader("Regional analysis")
@@ -634,10 +638,23 @@ def main():
         )
         col1, col2 = st.columns([1, 1])
         with col1:
-            render_chart(chart_region_mttr(filtered_df))
+            chart = chart_region_mttr(filtered_df)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for regional MTTR.")
         with col2:
-            render_chart(chart_site_type_mttr(filtered_df))
-        render_chart(chart_region_bucket_heatmap(filtered_df))
+            chart = chart_site_type_mttr(filtered_df)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for site type MTTR.")
+
+        chart = chart_region_bucket_heatmap(filtered_df)
+        if chart is not None:
+            render_chart(chart)
+        else:
+            st.info("No data available for regional heatmap.")
 
     with site_tab:
         st.subheader("Site performance")
@@ -657,9 +674,17 @@ def main():
         )
         col1, col2 = st.columns(2)
         with col1:
-            render_chart(chart_site_mttr(filtered_df, top_n=top_site_count))
+            chart = chart_site_mttr(filtered_df, top_n=top_site_count)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for site MTTR.")
         with col2:
-            render_chart(chart_site_failures(filtered_df, top_n=top_site_count))
+            chart = chart_site_failures(filtered_df, top_n=top_site_count)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for site failures.")
 
         scatter = chart_site_scatter(filtered_df)
         if scatter is not None:
@@ -678,9 +703,17 @@ def main():
         )
         col1, col2 = st.columns(2)
         with col1:
-            render_chart(chart_outage_breakdown(filtered_df))
+            chart = chart_outage_breakdown(filtered_df)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for outage breakdown.")
         with col2:
-            render_chart(chart_daily_reasons(filtered_df))
+            chart = chart_daily_reasons(filtered_df)
+            if chart is not None:
+                render_chart(chart)
+            else:
+                st.info("No data available for daily reasons.")
 
     with flow_tab:
         st.subheader("Resolution and SLA")
