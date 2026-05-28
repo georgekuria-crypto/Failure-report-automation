@@ -2,68 +2,68 @@
 
 A professional-grade Streamlit analytics dashboard for analyzing network failures, MTTR metrics, SLA compliance, and predictive insights with advanced features for production telecom operations.
 
-## 🎯 Key Features
+##  Key Features
 
-### 📊 Executive Dashboard
+###  Executive Dashboard
 - **5 KPI Metrics**: Total failures, total MTTR, average MTTR, affected sites, P95 MTTR
 - **Daily Failure Trends**: Visualize failure patterns over time
 - **Failure Bucket Distribution**: Understand which failure types dominate
 - **Dual-Axis Analytics**: Combined failures and MTTR view
 - **MTTR Trend Analysis**: Daily trends with moving averages
 
-### 🌍 Regional Intelligence
+###  Regional Intelligence
 - **Regional Comparison**: MTTR by region with color-coded performance
 - **Site Type Analysis**: Performance breakdown by Macro/Micro/Repeater/Indoor
 - **Regional Heatmap**: MTTR distribution across regions and failure types
 - **Kenya Regional Map**: Interactive Folium-based map showing regional outage intensity
 - **Geographic Clustering**: Identify problem regions at a glance
 
-### 📍 Site Performance
+###  Site Performance
 - **Top Sites Analysis**: Identify highest-impact sites by MTTR and frequency
 - **Site Scatter Plot**: Correlation between operating hours and MTTR
 - **Failure Frequency Ranking**: Sites with most repeated failures
 - **Dynamic Top-N Selection**: Adjust number of sites displayed
 - **Site Intelligence**: Full site name, region, and performance metrics
 
-### 📈 Failure Pattern Analysis
+###  Failure Pattern Analysis
 - **Hierarchical Sunburst**: Region → Bucket → Site Type breakdown
 - **Daily Pattern Explorer**: Daily failures decomposed by site and reason
 - **Hour of Day Heatmap**: Identify peak failure hours across the week
 - **Day-of-Week Analysis**: Understand weekly patterns
 - **Resolution Flow**: Power source → Failure type → Status visualization
 
-### 🔬 Advanced Analytics
+###  Advanced Analytics
 
-#### 🚨 Anomaly Detection
+####  Anomaly Detection
 - **IQR-Based Detection**: Automatically identifies unusual MTTR values
 - **Statistical Analysis**: Z-score and interquartile range methods
 - **Visual Highlighting**: Anomalies displayed in red with diamond markers
 - **Impact Quantification**: Shows percentage of data points flagged
 - **Trend-Based Detection**: Identifies deviations from rolling averages
 
-#### 📋 SLA Compliance Tracking
+####  SLA Compliance Tracking
 - **Real-Time Compliance Rate**: Percentage of records meeting SLA
 - **Breach Counter**: Total number of SLA breaches
 - **Severity-Based SLA**: Different thresholds for Critical (4h), Major (12h), Minor (48h)
 - **Breach Visualization**: Top breaches displayed in bar chart
 - **Breach Details**: Sorted by severity for prioritization
-- **Status Indicators**: ✅ Good (≥95%) | ⚠️ Warning (80-95%) | ❌ Critical (<80%)
+- **Status Indicators**:  Good (≥95%) |  Warning (80-95%) |  Critical (<80%)
 
-#### 📊 MTTR Trend & Forecasting
+####  MTTR Trend & Forecasting
 - **7-Day Forecast**: Exponential smoothing predictions
 - **Trend Visualization**: Actual vs predicted MTTR
 - **Moving Average**: 7-day rolling average overlay
 - **Daily Aggregation**: Automatic grouping by date
 - **Confidence Indicators**: Visual distinction between actual and forecast
 
-#### 👥 Team Performance Metrics
+####  Team Performance Metrics
 - **Efficiency Score**: Calculated from average MTTR and failure count
 - **Team Aggregation**: Automatic grouping by Engineer/Team
 - **Performance Comparison**: Side-by-side metric comparison
 - **Workload Distribution**: Sites and failure count per team
 - **Statistical Measures**: Min, max, std deviation per team
 
-### 🎨 Visualization Enhancements
+###  Visualization Enhancements
 - **Professional Styling**: Clean, modern Plotly charts
 - **Responsive Design**: Charts adapt to screen and window size
 - **Consistent Themes**: Dark mode and light mode support
@@ -73,7 +73,7 @@ A professional-grade Streamlit analytics dashboard for analyzing network failure
 - **Legend Management**: Positioned for clarity, collapsible
 - **Label Clarity**: Readable axes, titles, units, and annotations
 
-### 📥 Data Management
+###  Data Management
 - **Multi-Format Support**: Excel (.xlsx, .xls) and CSV files
 - **Flexible Filters**: 
   - Date range selector
@@ -83,13 +83,13 @@ A professional-grade Streamlit analytics dashboard for analyzing network failure
 - **Data Validation**: Automatic cleaning and type conversion
 - **Export Capability**: Download filtered data as CSV
 
-### 🌓 Theme Support
+###  Theme Support
 - **Dark Mode**: Optimized for low-light environments
 - **Light Mode**: Clear, bright presentation
 - **Adaptive Colors**: Charts adjust to selected theme automatically
 - **Consistent Styling**: All components theme-aware
 
-## 📦 Installation
+##  Installation
 
 ### Prerequisites
 - Python 3.8+
@@ -109,7 +109,7 @@ streamlit run app_enhanced.py
 
 Dashboard available at: `http://localhost:8501`
 
-## 📊 Data Format
+##  Data Format
 
 ### Required Columns
 | Column | Type | Description |
@@ -132,10 +132,10 @@ Dashboard available at: `http://localhost:8501`
 | Engineer | String | Team member metrics |
 | Team | String | Team-level analysis |
 
-## 🎓 Usage Guide
+##  Usage Guide
 
 ### 1. Upload Data
-- Click "📁 Upload failure report" in sidebar
+- Click " Upload failure report" in sidebar
 - Select Excel or CSV file with required columns
 - Dashboard auto-validates and processes data
 
@@ -182,7 +182,7 @@ Use sidebar controls to narrow analysis:
 - Download filtered results
 - Share with stakeholders
 
-## 🔬 Advanced Features Explained
+##  Advanced Features Explained
 
 ### Anomaly Detection Algorithm
 - **Method**: Interquartile Range (IQR) based
@@ -214,7 +214,7 @@ Efficiency = ((Max MTTR - Team MTTR) / (Max - Min)) × 100
 Higher scores = better performance
 ```
 
-## 🎨 Customization
+##  Customization
 
 ### Theme Colors
 Edit in `visualizations.py`:
@@ -241,7 +241,7 @@ height=480,
 margin=dict(l=75, r=35, t=100, b=80)
 ```
 
-## 📈 Performance Characteristics
+##  Performance Characteristics
 
 - **Data Size**: Optimized for 100-100K records
 - **Filtering**: Instant response (<1s for typical datasets)
@@ -249,16 +249,16 @@ margin=dict(l=75, r=35, t=100, b=80)
 - **Memory Footprint**: ~50-200MB for typical sessions
 - **Caching**: Data loaded once, reused across interactions
 
-## 🔒 Data Quality Assurance
+##  Data Quality Assurance
 
-✅ **Validation**: All required columns verified on load
-✅ **Type Conversion**: Automatic numeric and datetime conversion
-✅ **Missing Values**: Graceful handling with NaN preservation
-✅ **Duplicate Handling**: Preserved for accurate aggregation
-✅ **Outlier Safety**: Calculations use robust methods
-✅ **Zero Division**: Prevented in all computations
+ **Validation**: All required columns verified on load
+ **Type Conversion**: Automatic numeric and datetime conversion
+ **Missing Values**: Graceful handling with NaN preservation
+ **Duplicate Handling**: Preserved for accurate aggregation
+ **Outlier Safety**: Calculations use robust methods
+ **Zero Division**: Prevented in all computations
 
-## 📋 File Reference
+##  File Reference
 
 | File | Purpose |
 |------|---------|
@@ -270,7 +270,7 @@ margin=dict(l=75, r=35, t=100, b=80)
 | `requirements.txt` | Python dependencies |
 | `DEPLOYMENT_GUIDE.md` | Setup and deployment |
 
-## 🚀 Deployment
+##  Deployment
 
 ### Local Development
 ```bash
@@ -284,7 +284,7 @@ See `DEPLOYMENT_GUIDE.md` for:
 - Performance tuning
 - Monitoring setup
 
-## 📞 Support
+##  Support
 
 ### Common Issues
 
@@ -303,7 +303,7 @@ pip install folium streamlit-folium --upgrade
 - Check required columns present
 - Ensure date format: YYYY-MM-DD
 
-## 📝 License & Attribution
+##  License & Attribution
 
 Dashboard created with:
 - **Streamlit**: Web framework
@@ -312,7 +312,7 @@ Dashboard created with:
 - **SciPy**: Statistical analysis
 - **Folium**: Geographic mapping
 
-## 🎯 Future Roadmap
+##  Future Roadmap
 
 Planned enhancements:
 - [ ] PDF report generation
@@ -328,4 +328,3 @@ Planned enhancements:
 
 **Version**: 2.0 (Enhanced)
 **Last Updated**: May 26, 2026
-**Status**: Production Ready ✅
