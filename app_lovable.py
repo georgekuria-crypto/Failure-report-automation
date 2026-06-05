@@ -24,9 +24,25 @@ from visualizations import (
     format_bar_text,
     render_chart,
     style_figure,
+    CHART_CONFIG,
 )
 
 from constants import OPTIONAL_COLUMNS, REQUIRED_COLUMNS  # noqa: F401
+
+# Attempt importing plotly_events safely
+try:
+    from streamlit_plotly_events import plotly_events
+    PLOTLY_EVENTS_AVAILABLE = True
+except ImportError:
+    PLOTLY_EVENTS_AVAILABLE = False
+
+
+class NavigationState:
+    """Class representing a node in the interactive drilldown path."""
+    def __init__(self, view_type: str, filter_col: str | None = None, filter_val: str | None = None):
+        self.view_type = view_type  # 'dashboard', 'category_details', 'site_details'
+        self.filter_col = filter_col  # The column name to filter
+        self.filter_val = filter_val  # The value of the category
 
 
 # =========================================================
@@ -439,6 +455,341 @@ def validate_columns(df):
         st.stop()
 
 
+def extract_clicked_value(pt, df, column_name):
+    """Extract and validate clicked value from Plotly click event."""
+    unique_vals = set(df[column_name].dropna().astype(str).unique())
+    val_x = str(pt.get('x', ''))
+    val_y = str(pt.get('y', ''))
+    if val_x in unique_vals:
+        return pt.get('x')
+    if val_y in unique_vals:
+        return pt.get('y')
+    # Search for matching string representations
+    for val in unique_vals:
+        if val.lower() == val_x.lower() or val.lower() == val_y.lower():
+            return val
+    return pt.get('x') or pt.get('y')
+
+
+def render_drillable_chart(fig, df, column_name, view_type, key):
+    """Render a Plotly chart that supports interactive click-to-drill-down, with manual fallback."""
+    clicked_val = None
+    
+    # 1. Render the chart itself (either interactive or static fallback)
+    if PLOTLY_EVENTS_AVAILABLE:
+        try:
+            # We enforce override_height and configure the interactive key
+            selected_points = plotly_events(
+                fig,
+                click_event=True,
+                select_event=False,
+                hover_event=False,
+                key=f"evt_{key}"
+            )
+            if selected_points:
+                pt = selected_points[0]
+                clicked_val = extract_clicked_value(pt, df, column_name)
+        except Exception:
+            # Fall back to standard st.plotly_chart if click tracking fails
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
+    else:
+        st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
+
+    # 2. Render a clean manual selection fallback
+    unique_vals = sorted(df[column_name].dropna().unique())
+    with st.expander(f"🔍 Manual {column_name} Drill Down"):
+        selected_val = st.selectbox(
+            f"Select {column_name} to inspect:",
+            options=["-- Select --"] + unique_vals,
+            key=f"sb_manual_{key}"
+        )
+        if selected_val != "-- Select --":
+            clicked_val = selected_val
+
+    if clicked_val is not None:
+        # Prevent appending duplicates if already on stack
+        stack = st.session_state.drilldown_stack
+        if not stack or stack[-1].filter_val != clicked_val or stack[-1].filter_col != column_name:
+            st.session_state.drilldown_stack.append(NavigationState(view_type, column_name, clicked_val))
+            st.rerun()
+
+
+def render_breadcrumbs() -> None:
+    """Render a breadcrumb trail as a styled HTML bar — no nested columns."""
+    stack = st.session_state.drilldown_stack
+    if not stack:
+        return
+
+    # Build the breadcrumb HTML segments
+    crumb_html = '<span style="color:#94A3B8; font-size:0.9rem; font-weight:600;">🏠 Dashboard</span>'
+    for state in stack:
+        label = f"{state.filter_col}: {state.filter_val}"
+        crumb_html += (
+            ' <span style="color:#3B82F6; margin:0 6px;">➔</span> '
+            f'<span style="'
+            f'color:#E6EDF7; font-size:0.9rem; font-weight:600; '
+            f'background:rgba(59,130,246,0.15); padding:3px 10px; border-radius:6px;'
+            f'">{label}</span>'
+        )
+
+    st.markdown(
+        f'<div style="'
+        f'padding:8px 14px; border-radius:10px; '
+        f'background:rgba(255,255,255,0.04); '
+        f'border:1px solid rgba(148,163,184,0.18); '
+        f'margin-bottom:4px; line-height:2;'
+        f'">{crumb_html}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_navigation_controls() -> None:
+    """Render Back / Home buttons above the breadcrumb bar."""
+    if not st.session_state.drilldown_stack:
+        return
+
+    btn_col1, btn_col2, _ = st.columns([1, 1, 7])
+    with btn_col1:
+        if st.button("🔙 Back", use_container_width=True, key="nav_back_btn"):
+            st.session_state.drilldown_stack.pop()
+            st.rerun()
+    with btn_col2:
+        if st.button("🏠 Home", use_container_width=True, key="nav_home_btn"):
+            st.session_state.drilldown_stack = []
+            st.rerun()
+
+    render_breadcrumbs()
+    st.markdown("---")
+
+
+def render_category_drilldown(df, state):
+    """Render the detail view for a specific category (Bucket, Region, County, etc.)."""
+    val = state.filter_val
+    col = state.filter_col
+    
+    # The dataset has already been filtered by the stack items
+    st.markdown(f"## 📊 Category Analysis: `{val}` ({col})")
+    
+    # Calculations
+    total_incidents = len(df)
+    total_downtime = df["MTTR (Hours)"].sum()
+    avg_mttr = df["MTTR (Hours)"].mean()
+    total_sites = df["Site Name"].nunique()
+    
+    # KPIs cards
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("⚡ Total Incidents", f"{total_incidents:,}")
+    c2.metric("🗼 Unique Sites Impacted", f"{total_sites:,}")
+    c3.metric("⏱ Total Downtime", f"{total_downtime:,.1f} hrs")
+    c4.metric("📈 Average MTTR", f"{avg_mttr:,.2f} hrs")
+    
+    # Top affected sites under this category (Plotly chart)
+    section_title(f"Top Impacted Sites under {col}: {val}")
+    site_data = df.groupby("Site Name")["MTTR (Hours)"].sum().reset_index()
+    site_data = site_data.sort_values("MTTR (Hours)", ascending=False).head(15)
+    
+    fig = px.bar(
+        site_data, x="MTTR (Hours)", y="Site Name", orientation="h",
+        color="MTTR (Hours)", text="MTTR (Hours)",
+        color_continuous_scale=SEQUENTIAL_SCALE,
+        title=f"Top Sites by Total MTTR under {col}: {val}"
+    )
+    fig.update_layout(yaxis={"categoryorder": "total ascending"}, coloraxis_showscale=False)
+    fig = polish_figure(format_bar_text(style_figure(fig, height=400)))
+    
+    render_drillable_chart(fig, df, "Site Name", "site_details", key=f"cat_site_{col}_{val}")
+    
+    # Site Table breakdown
+    section_title("Detailed Site Performance Grid")
+    site_groups = df.groupby("Site Name")
+    
+    site_table_data = []
+    for site_name, group in site_groups:
+        region_val = group["REGION"].iloc[0] if "REGION" in group.columns else "N/A"
+        county_val = group["County"].iloc[0] if "County" in group.columns else "N/A"
+        cat_val = group["Failure Category"].iloc[0] if "Failure Category" in group.columns else "N/A"
+        bucket_val = group["Bucket"].iloc[0] if "Bucket" in group.columns else "N/A"
+        incidents = len(group)
+        downtime = group["MTTR (Hours)"].sum()
+        avg_m = group["MTTR (Hours)"].mean()
+        max_m = group["MTTR (Hours)"].max()
+        min_m = group["MTTR (Hours)"].min()
+        last_fail = group["Date"].max().strftime("%Y-%m-%d %H:%M") if "Date" in group.columns else "N/A"
+        
+        site_table_data.append({
+            "Site Name": site_name,
+            "Region": region_val,
+            "County": county_val,
+            "Failure Category": cat_val,
+            "Failure Bucket": bucket_val,
+            "Number of Incidents": incidents,
+            "Total Downtime (Hrs)": round(downtime, 2),
+            "Average MTTR (Hrs)": round(avg_m, 2),
+            "Maximum MTTR (Hrs)": round(max_m, 2),
+            "Minimum MTTR (Hrs)": round(min_m, 2),
+            "Last Failure Date": last_fail
+        })
+    
+    site_table_df = pd.DataFrame(site_table_data)
+    
+    if not site_table_df.empty:
+        site_table_df = site_table_df.sort_values("Total Downtime (Hrs)", ascending=False)
+        st.dataframe(site_table_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No sites found under this classification.")
+        
+    # Export Section
+    st.markdown("#### 📁 Export Category Dataset")
+    c1, c2, _ = st.columns([1, 1, 2])
+    with c1:
+        excel_data = generate_excel(df)
+        st.download_button(
+            label="⬇ Download Excel Report",
+            data=excel_data,
+            file_name=f"category_{col}_{val}_report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key=f"dl_excel_{col}_{val}"
+        )
+    with c2:
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇ Download CSV",
+            data=csv_data,
+            file_name=f"category_{col}_{val}_report.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key=f"dl_csv_{col}_{val}"
+        )
+
+
+def render_site_drilldown(df, state):
+    """Render the outage timeline and failure history for a single site."""
+    site_name = state.filter_val
+    
+    st.markdown(f"## 🗼 Site Outage Profile: `{site_name}`")
+    
+    # Calculations
+    total_incidents = len(df)
+    total_downtime = df["MTTR (Hours)"].sum()
+    avg_mttr = df["MTTR (Hours)"].mean()
+    
+    # SLA calculations
+    from analytics import SLATracker
+    sla_stats = SLATracker.calculate_sla_compliance(df, mttr_col="MTTR (Hours)", sla_threshold=24.0)
+    compliance_rate = sla_stats["compliance_rate"]
+    
+    # Display KPIs
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("⚡ Total Incidents", f"{total_incidents:,}")
+    c2.metric("⏱ Total Downtime", f"{total_downtime:,.1f} hrs")
+    c3.metric("📈 Average MTTR", f"{avg_mttr:,.2f} hrs")
+    c4.metric("🚨 SLA Compliance (<24h)", f"{compliance_rate:.1f}%", delta=f"{sla_stats['breaches']} breaches", delta_color="inverse")
+    
+    # Chronological timeline scatter plot
+    section_title("Chronological Outage History")
+    hover_cols = ["Status"]
+    if "Source of Power" in df.columns:
+        hover_cols.append("Source of Power")
+    if "Alarm Type" in df.columns:
+        hover_cols.append("Alarm Type")
+        
+    fig = px.scatter(
+        df, x="Date", y="MTTR (Hours)", color="Bucket",
+        size="MTTR (Hours)", hover_data=hover_cols,
+        color_discrete_sequence=CHART_PALETTE,
+        title=f"Outage Timelines for Site {site_name}"
+    )
+    fig = polish_figure(style_figure(fig, height=400))
+    st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
+    
+    # Historical record grid
+    section_title("Full Outage History Records")
+    show_cols = ["Date", "REGION", "Bucket", "MTTR (Hours)", "Status"]
+    for extra_col in ["County", "Vendor", "Alarm Type", "Source of Power", "Failure Category"]:
+        if extra_col in df.columns:
+            show_cols.append(extra_col)
+            
+    site_history_df = df[show_cols].sort_values("Date", ascending=False)
+    st.dataframe(site_history_df, use_container_width=True, hide_index=True)
+    
+    # Export Section
+    st.markdown("#### 📁 Export Site History")
+    c1, c2, _ = st.columns([1, 1, 2])
+    with c1:
+        excel_data = generate_excel(df)
+        st.download_button(
+            label="⬇ Download Excel Report",
+            data=excel_data,
+            file_name=f"site_{site_name}_history.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key=f"dl_excel_site_{site_name}"
+        )
+    with c2:
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇ Download CSV",
+            data=csv_data,
+            file_name=f"site_{site_name}_history.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key=f"dl_csv_site_{site_name}"
+        )
+
+
+def render_data_audit(df, filtered_df) -> None:
+    """Mathematical reconciler and schema validator."""
+    with st.expander("🔍 System Audit & Mathematical Reconciler", expanded=False):
+        st.markdown("### 📊 Database & Calculation Reconciler")
+        
+        # 1. Row counts
+        total_rows = len(df)
+        filtered_rows = len(filtered_df)
+        pct_filtered = (filtered_rows / total_rows * 100) if total_rows > 0 else 0
+        
+        # 2. Missing data audit
+        missing_counts = df.isnull().sum()
+        required_missing = {col: missing_counts[col] for col in REQUIRED_COLUMNS if col in missing_counts}
+        
+        # 3. Duplicate checks
+        duplicate_rows = df.duplicated().sum()
+        
+        # 4. Reconciler
+        raw_total_mttr = filtered_df["MTTR (Hours)"].sum()
+        bucket_sums = filtered_df.groupby("Bucket")["MTTR (Hours)"].sum()
+        aggregated_total_mttr = bucket_sums.sum()
+        
+        discrepancy = abs(raw_total_mttr - aggregated_total_mttr)
+        reconciled = discrepancy < 0.001
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f"**Data Coverage**")
+            st.write(f"Total Database Rows: {total_rows:,}")
+            st.write(f"Active Filtered Rows: {filtered_rows:,} ({pct_filtered:.1f}%)")
+            st.write(f"Duplicate Records: {duplicate_rows:,}")
+        with c2:
+            st.markdown(f"**Required Column Gaps (Nulls)**")
+            has_missing = False
+            for col, count in required_missing.items():
+                if count > 0:
+                    st.write(f"❌ {col}: {count:,} missing")
+                    has_missing = True
+            if not has_missing:
+                st.write("✅ All required fields have 100% data presence.")
+        with c3:
+            st.markdown(f"**MTTR Calculation Reconciler**")
+            st.write(f"Raw MTTR Sum: `{raw_total_mttr:,.4f}` hrs")
+            st.write(f"Bucket Group Sum: `{aggregated_total_mttr:,.4f}` hrs")
+            if reconciled:
+                st.markdown("### ✅ **Reconciled**")
+                st.caption(f"Zero mathematical discrepancy (diff: {discrepancy:,.6f} hrs)")
+            else:
+                st.markdown("### ⚠️ **Discrepancy Detected!**")
+                st.write(f"Difference: `{discrepancy:,.6f}` hrs")
+
+
 # =========================================================
 # FILTERS
 # =========================================================
@@ -455,24 +806,25 @@ def multiselect_filter(label, column, data, key=None):
     )
 
 
-def apply_filters(df):
+def apply_filters(df, show_brand=True):
 
-    # Branded sidebar header
-    st.sidebar.markdown(
-        """
-        <div class="sb-brand">
-            <div class="sb-brand-icon">📡</div>
-            <div class="sb-brand-text">
-                <b>NOC Analytics</b>
-                <span>Network Operations Control</span>
+    if show_brand:
+        # Branded sidebar header
+        st.sidebar.markdown(
+            """
+            <div class="sb-brand">
+                <div class="sb-brand-icon">📡</div>
+                <div class="sb-brand-text">
+                    <b>NOC Analytics</b>
+                    <span>Network Operations Control</span>
+                </div>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
 
     # Reset filters
-    if st.sidebar.button("↻  Reset All Filters", use_container_width=True):
+    if st.sidebar.button("↻  Reset All Filters", use_container_width=True, key="reset_btn"):
         for k in list(st.session_state.keys()):
             if k.startswith("flt_"):
                 del st.session_state[k]
@@ -524,8 +876,17 @@ def apply_filters(df):
             key="flt_mttr",
         )
 
-    # Apply
-    filtered_df = df[
+    # --- Dynamic Custom Fields ---
+    selected_dynamic = {}
+    present_dynamic = [c for c in ["County", "Vendor", "Alarm Type", "Failure Category"] if c in df.columns]
+    if present_dynamic:
+        st.sidebar.markdown('<div class="sb-section">📦 Custom Fields</div>', unsafe_allow_html=True)
+        with st.sidebar.expander("Attributes", expanded=False):
+            for col in present_dynamic:
+                selected_dynamic[col] = multiselect_filter(col, col, df, key=f"flt_{col.lower().replace(' ', '_')}")
+
+    # Apply base mask
+    mask = (
         (df["Date"].dt.date >= start_date)
         & (df["Date"].dt.date <= end_date)
         & (df["REGION"].isin(selected_regions))
@@ -535,7 +896,13 @@ def apply_filters(df):
         & (df["Bucket"].isin(selected_buckets))
         & (df["MTTR (Hours)"] >= mttr_range[0])
         & (df["MTTR (Hours)"] <= mttr_range[1])
-    ].copy()
+    )
+
+    # Apply dynamic masks
+    for col, vals in selected_dynamic.items():
+        mask = mask & (df[col].isin(vals))
+
+    filtered_df = df[mask].copy()
 
     # Active filter chips
     chips = []
@@ -545,6 +912,10 @@ def apply_filters(df):
         chips.append(f"{len(selected_buckets)} buckets")
     if mttr_range != (mttr_min, mttr_max):
         chips.append(f"MTTR {mttr_range[0]:.1f}–{mttr_range[1]:.1f}h")
+    for col, vals in selected_dynamic.items():
+        if len(vals) < df[col].nunique():
+            chips.append(f"{len(vals)} {col.lower()}s")
+
     if chips:
         st.sidebar.markdown('<div class="sb-section">Active Filters</div>', unsafe_allow_html=True)
         st.sidebar.markdown(
@@ -553,6 +924,11 @@ def apply_filters(df):
             '</div>',
             unsafe_allow_html=True,
         )
+
+    st.sidebar.divider()
+    st.sidebar.metric("Filtered Records", f"{len(filtered_df):,}")
+    st.sidebar.metric("Regions",          filtered_df["REGION"].nunique())
+    st.sidebar.metric("Sites",            filtered_df["Site Name"].nunique())
 
     return filtered_df
 
@@ -835,6 +1211,10 @@ def main():
 
     inject_global_css()
 
+    # Initialize navigation stack
+    if "drilldown_stack" not in st.session_state:
+        st.session_state.drilldown_stack = []
+
     # Sidebar uploader (kept here for consistent layout)
     st.sidebar.markdown(
         """
@@ -863,6 +1243,11 @@ def main():
         )
         return
 
+    # Check and reset stack if new file is uploaded
+    if st.session_state.get("last_uploaded_file") != uploaded_file.name:
+        st.session_state.last_uploaded_file = uploaded_file.name
+        st.session_state.drilldown_stack = []
+
     with st.spinner("Loading and validating telecom dataset…"):
         df = load_data(uploaded_file)
         validate_columns(df)
@@ -872,50 +1257,104 @@ def main():
         st.warning("No valid data found in the uploaded file.")
         return
 
-    # The branded sidebar header was already rendered above; re-using the
-    # branded block inside apply_filters would duplicate it, so we re-inject
-    # only the filter controls below by skipping the brand block there.
-    filtered_df = _apply_filters_no_brand(df)
+    # Apply filters dynamically (using unified function, no brand header duplicate)
+    filtered_df = apply_filters(df, show_brand=False)
 
     if filtered_df.empty:
         render_hero(None)
         st.warning("No data matches the current filters. Try expanding selections.")
         return
 
-    # Hero + KPIs + Exec Summary
+    # Navigation Routing Logic
+    if st.session_state.drilldown_stack:
+        # Render back and breadcrumb controls
+        render_navigation_controls()
+        
+        # Calculate active dataframe sequentially
+        active_df = filtered_df.copy()
+        for state in st.session_state.drilldown_stack[:-1]:
+            active_df = active_df[active_df[state.filter_col].astype(str) == str(state.filter_val)]
+            
+        current_state = st.session_state.drilldown_stack[-1]
+        subset_df = active_df[active_df[current_state.filter_col].astype(str) == str(current_state.filter_val)]
+        
+        # Switch to detailed views
+        if current_state.view_type == "category_details":
+            render_category_drilldown(subset_df, current_state)
+        elif current_state.view_type == "site_details":
+            render_site_drilldown(subset_df, current_state)
+            
+        # Global audit at the bottom of detailed views too
+        render_data_audit(df, filtered_df)
+        return
+
+    # Hero + KPIs + Exec Summary (Dashboard View)
     render_hero(filtered_df)
     render_kpis(filtered_df)
     render_executive_summary(filtered_df)
 
-    # Tabs
-    overview_tab, regional_tab, site_tab, export_tab = st.tabs(
-        ["📊  Overview", "🌍  Regional Analysis", "🗼  Site Performance", "📁  Data Export"]
-    )
+    # Dynamic Tabs Setup
+    tab_list = ["📊  Overview", "🌍  Regional Analysis", "🗼  Site Performance"]
+    has_dynamic_charts = any(col in filtered_df.columns for col in ["County", "Vendor", "Alarm Type", "Failure Category"])
+    if has_dynamic_charts:
+        tab_list.append("📦  Attribute Analysis")
+    tab_list.append("📁  Data Export")
 
-    with overview_tab:
+    tabs = st.tabs(tab_list)
+
+    with tabs[0]:
         section_title("Failure Composition & Daily Volume")
         col1, col2 = st.columns(2)
-        with col1: render_chart(chart_mttr_by_bucket(filtered_df))
-        with col2: render_chart(chart_daily_failures(filtered_df))
+        with col1:
+            fig = chart_mttr_by_bucket(filtered_df)
+            render_drillable_chart(fig, filtered_df, "Bucket", "category_details", key="overview_bucket")
+        with col2:
+            render_chart(chart_daily_failures(filtered_df))
 
         section_title("Operational Timeline")
         render_chart(chart_daily_activity(filtered_df))
         render_chart(chart_daily_mttr(filtered_df))
 
-    with regional_tab:
+    with tabs[1]:
         section_title("Regional Health Overview")
         col1, col2 = st.columns(2)
-        with col1: render_chart(chart_region_mttr(filtered_df))
-        with col2: render_chart(chart_region_heatmap(filtered_df))
+        with col1:
+            fig = chart_region_mttr(filtered_df)
+            render_drillable_chart(fig, filtered_df, "REGION", "category_details", key="regional_region")
+        with col2:
+            render_chart(chart_region_heatmap(filtered_df))
 
-    with site_tab:
+    with tabs[2]:
         section_title("Site Performance Drilldown")
         top_n = st.slider("Sites to Display", min_value=5, max_value=50, value=15)
         col1, col2 = st.columns(2)
-        with col1: render_chart(chart_site_mttr(filtered_df, top_n))
-        with col2: render_chart(chart_site_failures(filtered_df, top_n))
+        with col1:
+            fig = chart_site_mttr(filtered_df, top_n)
+            render_drillable_chart(fig, filtered_df, "Site Name", "site_details", key="site_mttr")
+        with col2:
+            fig = chart_site_failures(filtered_df, top_n)
+            render_drillable_chart(fig, filtered_df, "Site Name", "site_details", key="site_failures")
 
-    with export_tab:
+    if has_dynamic_charts:
+        with tabs[tab_list.index("📦  Attribute Analysis")]:
+            section_title("Custom Attributes Performance")
+            cols_to_render = [col for col in ["County", "Vendor", "Alarm Type", "Failure Category"] if col in filtered_df.columns]
+            
+            for col in cols_to_render:
+                st.markdown(f"### {col} Analysis")
+                data = aggregate_sum(filtered_df, col)
+                fig = px.bar(
+                    data, x=col, y="MTTR (Hours)", color=col,
+                    text="MTTR (Hours)",
+                    color_discrete_sequence=CHART_PALETTE,
+                    title=f"Total MTTR by {col}"
+                )
+                fig.update_layout(showlegend=False)
+                fig = polish_figure(format_bar_text(style_figure(fig)))
+                
+                render_drillable_chart(fig, filtered_df, col, "category_details", key=f"dynamic_chart_{col.lower().replace(' ', '_')}")
+
+    with tabs[tab_list.index("📁  Data Export")]:
         section_title("Filtered Dataset Preview")
         st.caption(f"Showing first 1,000 of {len(filtered_df):,} filtered records.")
         st.dataframe(filtered_df.head(1000), use_container_width=True, hide_index=True)
@@ -930,6 +1369,7 @@ def main():
                 file_name="network_failure_analysis.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
+                key="dl_main_excel"
             )
         with c2:
             csv_data = filtered_df.to_csv(index=False).encode("utf-8")
@@ -939,86 +1379,11 @@ def main():
                 file_name="network_failure_analysis.csv",
                 mime="text/csv",
                 use_container_width=True,
+                key="dl_main_csv"
             )
 
-
-# Internal wrapper: same as apply_filters but skips the duplicate brand header
-def _apply_filters_no_brand(df):
-    # Re-uses the original sidebar controls; brand block was already rendered.
-    if st.sidebar.button("↻  Reset All Filters", use_container_width=True, key="reset_btn"):
-        for k in list(st.session_state.keys()):
-            if k.startswith("flt_"):
-                del st.session_state[k]
-        st.rerun()
-
-    st.sidebar.markdown('<div class="sb-section">🕒 Time Window</div>', unsafe_allow_html=True)
-
-    min_date = df["Date"].min().date()
-    max_date = df["Date"].max().date()
-
-    date_range = st.sidebar.date_input(
-        "Date Range",
-        value=(min_date, max_date),
-        min_value=min_date, max_value=max_date,
-        key="flt_date",
-    )
-    if len(date_range) != 2:
-        st.warning("Please select a valid start and end date.")
-        st.stop()
-    start_date, end_date = date_range
-
-    st.sidebar.markdown('<div class="sb-section">🌐 Network Scope</div>', unsafe_allow_html=True)
-    with st.sidebar.expander("Region & Site", expanded=True):
-        selected_regions    = multiselect_filter("Region", "REGION", df, key="flt_region")
-        selected_site_types = multiselect_filter("Site Type", "SITE TYPE", df, key="flt_stype")
-        selected_classes    = multiselect_filter("Site Classification", "Site Classification", df, key="flt_class")
-        selected_visibility = multiselect_filter("Visibility", "Visibility", df, key="flt_vis")
-
-    st.sidebar.markdown('<div class="sb-section">⚠️ Failure Profile</div>', unsafe_allow_html=True)
-    with st.sidebar.expander("Bucket & MTTR", expanded=True):
-        selected_buckets = multiselect_filter("Failure Bucket", "Bucket", df, key="flt_bucket")
-        mttr_min = float(df["MTTR (Hours)"].min())
-        mttr_max = float(df["MTTR (Hours)"].max())
-        mttr_range = st.slider(
-            "MTTR Range (Hours)",
-            min_value=mttr_min, max_value=mttr_max,
-            value=(mttr_min, mttr_max), key="flt_mttr",
-        )
-
-    filtered_df = df[
-        (df["Date"].dt.date >= start_date)
-        & (df["Date"].dt.date <= end_date)
-        & (df["REGION"].isin(selected_regions))
-        & (df["SITE TYPE"].isin(selected_site_types))
-        & (df["Site Classification"].isin(selected_classes))
-        & (df["Visibility"].isin(selected_visibility))
-        & (df["Bucket"].isin(selected_buckets))
-        & (df["MTTR (Hours)"] >= mttr_range[0])
-        & (df["MTTR (Hours)"] <= mttr_range[1])
-    ].copy()
-
-    chips = []
-    if len(selected_regions) < df["REGION"].nunique():
-        chips.append(f"{len(selected_regions)} regions")
-    if len(selected_buckets) < df["Bucket"].nunique():
-        chips.append(f"{len(selected_buckets)} buckets")
-    if mttr_range != (mttr_min, mttr_max):
-        chips.append(f"MTTR {mttr_range[0]:.1f}–{mttr_range[1]:.1f}h")
-    if chips:
-        st.sidebar.markdown('<div class="sb-section">Active Filters</div>', unsafe_allow_html=True)
-        st.sidebar.markdown(
-            '<div class="sb-chips">' +
-            "".join(f'<span class="sb-chip">{c}</span>' for c in chips) +
-            '</div>',
-            unsafe_allow_html=True,
-        )
-
-    st.sidebar.divider()
-    st.sidebar.metric("Filtered Records", f"{len(filtered_df):,}")
-    st.sidebar.metric("Regions",          filtered_df["REGION"].nunique())
-    st.sidebar.metric("Sites",            filtered_df["Site Name"].nunique())
-
-    return filtered_df
+    # Render system audit reconciler block globally at the bottom
+    render_data_audit(df, filtered_df)
 
 
 if __name__ == "__main__":
