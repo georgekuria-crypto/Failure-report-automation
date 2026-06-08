@@ -1186,6 +1186,58 @@ def chart_site_failures(df, top_n=15):
     return polish_figure(style_figure(fig, height=600))
 
 
+def chart_failures_by_bucket(df):
+    data = df.groupby("Bucket").size().reset_index(name="Failure Count").sort_values("Failure Count", ascending=True)
+    fig = px.bar(
+        data, x="Failure Count", y="Bucket", orientation="h",
+        color="Failure Count", text="Failure Count",
+        color_continuous_scale=SEQUENTIAL_SCALE,
+        title="Total Failures by Bucket",
+    )
+    fig.update_layout(yaxis={"categoryorder": "total ascending"}, coloraxis_showscale=False)
+    return polish_figure(style_figure(fig))
+
+
+def chart_failures_by_region(df):
+    data = df.groupby("REGION").size().reset_index(name="Failure Count")
+    fig = px.pie(
+        data, names="REGION", values="Failure Count",
+        color_discrete_sequence=CHART_PALETTE,
+        title="Failures per Region (Percentage)",
+        hole=0.4
+    )
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return polish_figure(style_figure(fig))
+
+
+def chart_mttr_visibility_sitetype(df):
+    if "Visibility" not in df.columns or "SITE TYPE" not in df.columns:
+        return go.Figure()
+    data = df.groupby(["SITE TYPE", "Visibility"])["MTTR (Hours)"].mean().reset_index()
+    fig = px.bar(
+        data, x="SITE TYPE", y="MTTR (Hours)", color="Visibility", barmode="group",
+        color_discrete_sequence=CHART_PALETTE,
+        title="Average MTTR by Site Type & Visibility",
+    )
+    return polish_figure(style_figure(fig))
+
+
+def chart_site_failures_per_day(df, top_n=15):
+    top_sites = df.groupby("Site Name").size().nlargest(top_n).index
+    filtered = df[df["Site Name"].isin(top_sites)]
+    
+    data = filtered.groupby([filtered["Date"].dt.date, "Site Name"]).size().reset_index(name="Failure Count")
+    data["Date"] = pd.to_datetime(data["Date"])
+    
+    fig = px.bar(
+        data, x="Date", y="Failure Count", color="Site Name",
+        title=f"Daily Failures for Top {top_n} Sites",
+        color_discrete_sequence=CHART_PALETTE,
+        barmode="stack",
+    )
+    return polish_figure(style_figure(fig))
+
+
 # =========================================================
 # EXCEL EXPORT
 # =========================================================
@@ -1304,30 +1356,47 @@ def main():
     tabs = st.tabs(tab_list)
 
     with tabs[0]:
-        section_title("Failure Composition & Daily Volume")
+        section_title("Failure Breakdown")
         col1, col2 = st.columns(2)
         with col1:
-            fig = chart_mttr_by_bucket(filtered_df)
-            render_drillable_chart(fig, filtered_df, "Bucket", "category_details", key="overview_bucket")
+            fig = chart_failures_by_bucket(filtered_df)
+            render_drillable_chart(fig, filtered_df, "Bucket", "category_details", key="overview_failures_bucket")
         with col2:
-            render_chart(chart_daily_failures(filtered_df))
+            fig = chart_mttr_by_bucket(filtered_df)
+            render_drillable_chart(fig, filtered_df, "Bucket", "category_details", key="overview_mttr_bucket")
+
+        section_title("MTTR by Attributes")
+        if "Visibility" in filtered_df.columns and "SITE TYPE" in filtered_df.columns:
+            render_chart(chart_mttr_visibility_sitetype(filtered_df))
 
         section_title("Operational Timeline")
-        render_chart(chart_daily_activity(filtered_df))
+        col3, col4 = st.columns(2)
+        with col3:
+            render_chart(chart_daily_failures(filtered_df))
+        with col4:
+            render_chart(chart_daily_activity(filtered_df))
         render_chart(chart_daily_mttr(filtered_df))
 
     with tabs[1]:
         section_title("Regional Health Overview")
         col1, col2 = st.columns(2)
         with col1:
-            fig = chart_region_mttr(filtered_df)
-            render_drillable_chart(fig, filtered_df, "REGION", "category_details", key="regional_region")
+            fig = chart_failures_by_region(filtered_df)
+            render_drillable_chart(fig, filtered_df, "REGION", "category_details", key="regional_failures_region")
         with col2:
-            render_chart(chart_region_heatmap(filtered_df))
+            fig = chart_region_mttr(filtered_df)
+            render_drillable_chart(fig, filtered_df, "REGION", "category_details", key="regional_mttr_region")
+            
+        st.markdown("---")
+        render_chart(chart_region_heatmap(filtered_df))
 
     with tabs[2]:
         section_title("Site Performance Drilldown")
         top_n = st.slider("Sites to Display", min_value=5, max_value=50, value=15)
+        
+        render_chart(chart_site_failures_per_day(filtered_df, top_n))
+        
+        st.markdown("---")
         col1, col2 = st.columns(2)
         with col1:
             fig = chart_site_mttr(filtered_df, top_n)
