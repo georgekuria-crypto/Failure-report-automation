@@ -62,21 +62,22 @@ st.set_page_config(
 # =========================================================
 
 THEME = {
-    "bg":           "#0B1020",
-    "bg_soft":      "#111733",
-    "surface":      "rgba(255,255,255,0.04)",
-    "surface_2":    "rgba(255,255,255,0.06)",
-    "border":       "rgba(148,163,184,0.18)",
-    "text":         "#E6EDF7",
-    "text_muted":   "#94A3B8",
-    "navy":         "#0B1F4D",
+    "bg":           "var(--background-color)",
+    "bg_soft":      "var(--secondary-background-color)",
+    "surface":      "var(--secondary-background-color)",
+    "surface_2":    "rgba(148,163,184,0.15)",
+    "border":       "rgba(148,163,184,0.25)",
+    "text":         "var(--text-color)",
+    "text_muted":   "rgba(148,163,184,0.85)",  # Slate-like neutral gray with alpha
+    "navy":         "var(--primary-color)",
     "electric":     "#3B82F6",
-    "cyan":         "#22D3EE",
+    "cyan":         "#06B6D4",
     "violet":       "#8B5CF6",
     "success":      "#22C55E",
     "amber":        "#F59E0B",
     "critical":     "#EF4444",
 }
+
 
 CHART_PALETTE = [
     THEME["electric"], THEME["cyan"], THEME["violet"],
@@ -262,7 +263,7 @@ def inject_global_css() -> None:
             }}
             .stTabs [data-baseweb="tab"]:hover {{
                 color: {THEME["text"]};
-                background: rgba(255,255,255,0.04);
+                background: {THEME["surface_2"]};
             }}
             .stTabs [aria-selected="true"] {{
                 background: linear-gradient(135deg, {THEME["electric"]}, {THEME["violet"]}) !important;
@@ -272,7 +273,7 @@ def inject_global_css() -> None:
 
             /* ---------- SIDEBAR ---------- */
             [data-testid="stSidebar"] {{
-                background: linear-gradient(180deg, #0A1230 0%, #070B1F 100%);
+                background: {THEME["bg_soft"]};
                 border-right: 1px solid {THEME["border"]};
             }}
             [data-testid="stSidebar"] .block-container {{ padding-top: 1rem; }}
@@ -360,7 +361,7 @@ def polish_figure(fig: go.Figure, *, height: int | None = None) -> go.Figure:
         ),
         margin=dict(l=20, r=20, t=60, b=40),
         legend=dict(
-            bgcolor="rgba(255,255,255,0.03)",
+            bgcolor=THEME["surface_2"],
             bordercolor=THEME["border"],
             borderwidth=1,
             font=dict(color=THEME["text"], size=12),
@@ -393,7 +394,7 @@ def polish_figure(fig: go.Figure, *, height: int | None = None) -> go.Figure:
             trace.line.width = 3
             if trace.marker:
                 trace.marker.size = 7
-                trace.marker.line = dict(width=1.5, color="rgba(255,255,255,0.85)")
+                trace.marker.line = dict(width=1.5, color=THEME["bg"])
 
         # Rounded bars (Plotly approximation via corner radius where supported)
         if trace.type == "bar":
@@ -521,13 +522,13 @@ def render_breadcrumbs() -> None:
         return
 
     # Build the breadcrumb HTML segments
-    crumb_html = '<span style="color:#94A3B8; font-size:0.9rem; font-weight:600;">🏠 Dashboard</span>'
+    crumb_html = f'<span style="color:{THEME["text_muted"]}; font-size:0.9rem; font-weight:600;">🏠 Dashboard</span>'
     for state in stack:
         label = f"{state.filter_col}: {state.filter_val}"
         crumb_html += (
-            ' <span style="color:#3B82F6; margin:0 6px;">➔</span> '
+            f' <span style="color:{THEME["electric"]}; margin:0 6px;">➔</span> '
             f'<span style="'
-            f'color:#E6EDF7; font-size:0.9rem; font-weight:600; '
+            f'color:var(--text-color); font-size:0.9rem; font-weight:600; '
             f'background:rgba(59,130,246,0.15); padding:3px 10px; border-radius:6px;'
             f'">{label}</span>'
         )
@@ -535,8 +536,8 @@ def render_breadcrumbs() -> None:
     st.markdown(
         f'<div style="'
         f'padding:8px 14px; border-radius:10px; '
-        f'background:rgba(255,255,255,0.04); '
-        f'border:1px solid rgba(148,163,184,0.18); '
+        f'background:{THEME["surface"]}; '
+        f'border:1px solid {THEME["border"]}; '
         f'margin-bottom:4px; line-height:2;'
         f'">{crumb_html}</div>',
         unsafe_allow_html=True,

@@ -42,12 +42,12 @@ def chart_template() -> str:
 
 def chart_text_color() -> str:
     """Get text color for current theme."""
-    return "#f8fafc" if is_dark_theme() else "#0f172a"
+    return "var(--text-color)"
 
 
 def chart_grid_color() -> str:
     """Get grid color for current theme."""
-    return "rgba(226, 232, 240, 0.20)" if is_dark_theme() else "#e5e7eb"
+    return "rgba(148, 163, 184, 0.15)"
 
 
 CHART_CONFIG = {
