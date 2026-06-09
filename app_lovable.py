@@ -424,6 +424,14 @@ def load_data(file):
 
     df.columns = df.columns.astype(str).str.strip()
 
+    # Detect if this is a Safaricom report based on unique column headers
+    is_safaricom = "INC" in df.columns or "rf" in df.columns
+
+    if is_safaricom:
+        if "SITE TYPE" in df.columns:
+            df["Site Classification"] = df["SITE TYPE"]
+            df["SITE TYPE"] = "Unknown"
+
     # Column normalization for cross-vendor support (e.g. Safaricom vs Airtel)
     column_mapping = {
         "DATE": "Date",
@@ -440,9 +448,6 @@ def load_data(file):
             df.rename(columns={old_col: new_col}, inplace=True)
             
     # Inject defaults for structural columns that might be missing in some vendor sheets
-    if "Site Classification" not in df.columns:
-        df["Site Classification"] = "Unknown"
-
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.dropna(subset=["Date"])
@@ -456,8 +461,18 @@ def load_data(file):
     for col in df.select_dtypes(include="object").columns:
         df[col] = (
             df[col].astype(str).str.strip()
-            .replace({"": pd.NA, "nan": pd.NA, "NaN": pd.NA})
+            .replace({"": pd.NA, "nan": pd.NA, "NaN": pd.NA, "None": pd.NA})
         )
+
+    # Safaricom uses SITE TYPE for classification. If Site Classification is empty or missing, fill from SITE TYPE.
+    if "Site Classification" not in df.columns:
+        df["Site Classification"] = pd.NA
+
+    if "SITE TYPE" in df.columns:
+        df["Site Classification"] = df["Site Classification"].fillna(df["SITE TYPE"])
+    
+    df["Site Classification"] = df["Site Classification"].fillna("Unknown")
+
 
     return df
 
