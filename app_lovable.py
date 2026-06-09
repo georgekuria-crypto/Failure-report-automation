@@ -424,14 +424,6 @@ def load_data(file):
 
     df.columns = df.columns.astype(str).str.strip()
 
-    # Detect if this is a Safaricom report based on unique column headers
-    is_safaricom = "INC" in df.columns or "rf" in df.columns
-
-    if is_safaricom:
-        if "SITE TYPE" in df.columns:
-            df["Site Classification"] = df["SITE TYPE"]
-            df["SITE TYPE"] = "Unknown"
-
     # Column normalization for cross-vendor support (e.g. Safaricom vs Airtel)
     column_mapping = {
         "DATE": "Date",
@@ -464,12 +456,8 @@ def load_data(file):
             .replace({"": pd.NA, "nan": pd.NA, "NaN": pd.NA, "None": pd.NA})
         )
 
-    # Safaricom uses SITE TYPE for classification. If Site Classification is empty or missing, fill from SITE TYPE.
     if "Site Classification" not in df.columns:
-        df["Site Classification"] = pd.NA
-
-    if "SITE TYPE" in df.columns:
-        df["Site Classification"] = df["Site Classification"].fillna(df["SITE TYPE"])
+        df["Site Classification"] = "Unknown"
     
     df["Site Classification"] = df["Site Classification"].fillna("Unknown")
 
@@ -892,7 +880,13 @@ def apply_filters(df, show_brand=True):
     with st.sidebar.expander("Region & Site", expanded=True):
         selected_regions      = multiselect_filter("Region", "REGION", df, key="flt_region")
         selected_site_types   = multiselect_filter("Site Type", "SITE TYPE", df, key="flt_stype")
-        selected_classes      = multiselect_filter("Site Classification", "Site Classification", df, key="flt_class")
+        
+        has_site_class = not (df["Site Classification"].nunique() == 1 and df["Site Classification"].iloc[0] == "Unknown")
+        if has_site_class:
+            selected_classes = multiselect_filter("Site Classification", "Site Classification", df, key="flt_class")
+        else:
+            selected_classes = df["Site Classification"].unique().tolist()
+            
         selected_visibility   = multiselect_filter("Visibility", "Visibility", df, key="flt_vis")
 
     # --- Failure Profile ---
