@@ -430,7 +430,9 @@ def load_data(file):
         "Region": "REGION",
         "Site Type": "SITE TYPE",
         "TOTAL DOWN TIME (HOURS)": "MTTR (Hours)",
-        "BHT (HOURS)": "MTTR (Hours)"
+        "TOTAL DOWNTIME(HOURS)": "MTTR (Hours)",
+        "BHT (HOURS)": "MTTR (Hours)",
+        "BHT ( HOURS)": "MTTR (Hours)",
     }
     
     for old_col, new_col in column_mapping.items():
