@@ -424,6 +424,23 @@ def load_data(file):
 
     df.columns = df.columns.astype(str).str.strip()
 
+    # Column normalization for cross-vendor support (e.g. Safaricom vs Airtel)
+    column_mapping = {
+        "DATE": "Date",
+        "Region": "REGION",
+        "Site Type": "SITE TYPE",
+        "TOTAL DOWN TIME (HOURS)": "MTTR (Hours)",
+        "BHT (HOURS)": "MTTR (Hours)"
+    }
+    
+    for old_col, new_col in column_mapping.items():
+        if old_col in df.columns and new_col not in df.columns:
+            df.rename(columns={old_col: new_col}, inplace=True)
+            
+    # Inject defaults for structural columns that might be missing in some vendor sheets
+    if "Site Classification" not in df.columns:
+        df["Site Classification"] = "Unknown"
+
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.dropna(subset=["Date"])
