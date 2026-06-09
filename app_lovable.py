@@ -470,6 +470,7 @@ def validate_columns(df):
 
     if missing:
         st.error("Missing required columns: " + ", ".join(missing))
+        st.info("Columns found in uploaded file: " + ", ".join(df.columns))
         st.stop()
 
 
