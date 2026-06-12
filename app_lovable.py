@@ -1267,6 +1267,28 @@ def chart_site_failures_per_day(df, top_n=15):
     return polish_figure(style_figure(fig))
 
 
+def chart_sla_breaches(df):
+    data = df.groupby(df["Date"].dt.date)["MTTR (Hours)"].sum().reset_index()
+    data["Date"] = pd.to_datetime(data["Date"])
+    # 548 sites * 24 hours = 13152 total hours per day
+    data["Uptime (%)"] = 100 - (data["MTTR (Hours)"] / 13152) * 100
+    
+    fig = px.line(
+        data, x="Date", y="Uptime (%)", markers=True,
+        title="Daily Uptime vs 99.97% SLA Target",
+        color_discrete_sequence=[THEME.get("electric", "#0ea5e9")],
+    )
+    
+    fig.add_hline(
+        y=99.97,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="SLA Target (99.97%)",
+        annotation_position="bottom right",
+    )
+    return polish_figure(style_figure(fig))
+
+
 # =========================================================
 # EXCEL EXPORT
 # =========================================================
@@ -1376,7 +1398,7 @@ def main():
     render_executive_summary(filtered_df)
 
     # Dynamic Tabs Setup
-    tab_list = ["📊  Overview", "🌍  Regional Analysis", "🗼  Site Performance"]
+    tab_list = ["📊  Overview", "🌍  Regional Analysis", "🗼  Site Performance", "📈  SLA Breaches"]
     has_dynamic_charts = any(col in filtered_df.columns for col in ["County", "Vendor", "Alarm Type", "Failure Category"])
     if has_dynamic_charts:
         tab_list.append("📦  Attribute Analysis")
@@ -1433,6 +1455,11 @@ def main():
         with col2:
             fig = chart_site_failures(filtered_df, top_n)
             render_drillable_chart(fig, filtered_df, "Site Name", "site_details", key="site_failures")
+
+    with tabs[3]:
+        section_title("SLA Compliance Tracking")
+        st.info("Tracking daily network uptime against the 99.97% SLA target. Assumes 13,152 total possible hours per day (548 sites × 24 hours).")
+        render_chart(chart_sla_breaches(filtered_df))
 
     if has_dynamic_charts:
         with tabs[tab_list.index("📦  Attribute Analysis")]:
