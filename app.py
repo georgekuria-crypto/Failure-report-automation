@@ -425,6 +425,39 @@ def chart_daily_activity(df):
     return style_figure(fig)
 
 
+def chart_sla_breaches(df):
+
+    data = (
+        df.groupby(df["Date"].dt.date)
+        ["MTTR (Hours)"]
+        .sum()
+        .reset_index()
+    )
+
+    data["Date"] = pd.to_datetime(data["Date"])
+
+    # 548 sites * 24 hours = 13152 total hours per day
+    data["Uptime (%)"] = 100 - (data["MTTR (Hours)"] / 13152) * 100
+
+    fig = px.line(
+        data,
+        x="Date",
+        y="Uptime (%)",
+        markers=True,
+        title="Daily Uptime vs 99.97% SLA Target",
+    )
+
+    fig.add_hline(
+        y=99.97,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="SLA Target (99.97%)",
+        annotation_position="bottom right",
+    )
+
+    return style_figure(fig)
+
+
 def chart_region_mttr(df):
 
     data = aggregate_sum(df, "REGION")
@@ -605,11 +638,12 @@ def main():
     render_executive_summary(filtered_df)
 
     # Tabs
-    overview_tab, regional_tab, site_tab, export_tab = st.tabs(
+    overview_tab, regional_tab, site_tab, sla_tab, export_tab = st.tabs(
         [
             "Overview",
             "Regional Analysis",
             "Site Performance",
+            "SLA Breaches",
             "Data Export",
         ]
     )
@@ -676,6 +710,17 @@ def main():
                     top_n,
                 )
             )
+
+    # =====================================================
+    # SLA BREACHES TAB
+    # =====================================================
+
+    with sla_tab:
+
+        st.markdown("### SLA Compliance Tracking")
+        st.info("Tracking daily network uptime against the 99.97% SLA target. Assumes 13,152 total possible hours per day (548 sites × 24 hours).")
+
+        render_chart(chart_sla_breaches(filtered_df))
 
     # =====================================================
     # EXPORT TAB
