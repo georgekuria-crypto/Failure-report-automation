@@ -1286,18 +1286,63 @@ def chart_site_failures_per_day(df, top_n=15):
     return polish_figure(style_figure(fig))
 
 
-def chart_sla_breaches(df):
-    data = df.groupby(df["Date"].dt.date)["MTTR (Hours)"].sum().reset_index()
-    data["Date"] = pd.to_datetime(data["Date"])
-    # 548 sites * 24 hours = 13152 total hours per day
-    data["Uptime (%)"] = 100 - (data["MTTR (Hours)"] / 13152) * 100
-    
-    fig = px.line(
-        data, x="Date", y="Uptime (%)", markers=True,
-        title="Daily Uptime vs 99.97% SLA Target",
-        color_discrete_sequence=[THEME.get("electric", "#0ea5e9")],
-    )
-    
+def chart_sla_breaches(df, start_date=None, end_date=None):
+    if df.empty:
+        return polish_figure(style_figure(px.line(title="No data available for SLA tracking")))
+
+    if "SITE TYPE" in df.columns:
+        # Group by Date and SITE TYPE
+        data = df.groupby([df["Date"].dt.date, "SITE TYPE"])["MTTR (Hours)"].sum().reset_index()
+        data["Date"] = pd.to_datetime(data["Date"])
+        
+        sdate = pd.to_datetime(start_date) if start_date else data["Date"].min()
+        edate = pd.to_datetime(end_date) if end_date else data["Date"].max()
+        all_dates = pd.date_range(start=sdate, end=edate, freq="D")
+        all_types = df["SITE TYPE"].dropna().unique()
+        
+        idx = pd.MultiIndex.from_product([all_dates, all_types], names=["Date", "SITE TYPE"])
+        full_grid = pd.DataFrame(index=idx).reset_index()
+        
+        data = pd.merge(full_grid, data, on=["Date", "SITE TYPE"], how="left").fillna({"MTTR (Hours)": 0})
+        
+        def calculate_uptime(row):
+            stype = str(row["SITE TYPE"]).strip().upper()
+            if stype == "DG":
+                total_hours = 306 * 24
+            elif stype == "NON-DG":
+                total_hours = 243 * 24
+            else:
+                # Fallback for unexpected site types
+                total_hours = 243 * 24 
+            
+            return 100 - (row["MTTR (Hours)"] / total_hours) * 100
+            
+        data["Uptime (%)"] = data.apply(calculate_uptime, axis=1)
+        
+        fig = px.line(
+            data, x="Date", y="Uptime (%)", color="SITE TYPE", markers=True,
+            title="Daily Uptime by Site Type vs 99.97% SLA Target",
+            color_discrete_sequence=CHART_PALETTE,
+        )
+    else:
+        data = df.groupby(df["Date"].dt.date)["MTTR (Hours)"].sum().reset_index()
+        data["Date"] = pd.to_datetime(data["Date"])
+        
+        sdate = pd.to_datetime(start_date) if start_date else data["Date"].min()
+        edate = pd.to_datetime(end_date) if end_date else data["Date"].max()
+        all_dates = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
+        
+        data = pd.merge(all_dates, data, on="Date", how="left").fillna({"MTTR (Hours)": 0})
+        
+        # 549 sites * 24 hours = 13176 total hours per day
+        data["Uptime (%)"] = 100 - (data["MTTR (Hours)"] / 13176) * 100
+        
+        fig = px.line(
+            data, x="Date", y="Uptime (%)", markers=True,
+            title="Daily Uptime vs 99.97% SLA Target",
+            color_discrete_sequence=[THEME.get("electric", "#0ea5e9")],
+        )
+        
     fig.add_hline(
         y=99.97,
         line_dash="dash",
@@ -1477,8 +1522,8 @@ def main():
 
     with tabs[3]:
         section_title("SLA Compliance Tracking")
-        st.info("Tracking daily network uptime against the 99.97% SLA target. Assumes 13,152 total possible hours per day (548 sites × 24 hours).")
-        render_chart(chart_sla_breaches(filtered_df))
+        st.info("Tracking daily network uptime against the 99.97% SLA target. Assumes 13,176 total possible hours per day (549 sites × 24 hours).")
+        render_chart(chart_sla_breaches(filtered_df, start_date, end_date))
 
     if has_dynamic_charts:
         with tabs[tab_list.index("📦  Attribute Analysis")]:
