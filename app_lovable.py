@@ -17,6 +17,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import os
+import tempfile
+from fpdf import FPDF
 
 from visualizations import (
     DISCRETE_COLORS,
@@ -1364,6 +1367,58 @@ def generate_excel(df):
     return output.getvalue()
 
 
+# =========================================================
+# PDF EXPORT
+# =========================================================
+
+def generate_pdf_report(df, start_date, end_date):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    def add_chart(pdf_obj, fig, title):
+        pdf_obj.set_font("helvetica", style="B", size=12)
+        pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            fig.write_image(tmp.name, format="png", engine="kaleido", width=900, height=450, scale=2)
+            pdf_obj.image(tmp.name, x=10, w=190)
+        os.unlink(tmp.name)
+        pdf_obj.ln(5)
+        
+    def add_section(pdf_obj, section_title):
+        pdf_obj.add_page()
+        pdf_obj.set_font("helvetica", style="B", size=18)
+        pdf_obj.set_text_color(14, 165, 233)
+        pdf_obj.cell(0, 15, section_title, align="L", new_x="LMARGIN", new_y="NEXT")
+        pdf_obj.set_text_color(0, 0, 0)
+        pdf_obj.ln(5)
+        
+    # Build charts
+    add_section(pdf, "1. Executive Overview")
+    add_chart(pdf, chart_daily_failures(df), "Daily Failures Trend")
+    add_chart(pdf, chart_daily_mttr(df), "Daily MTTR Trend")
+    
+    add_section(pdf, "2. Regional Analysis")
+    add_chart(pdf, chart_failures_by_region(df), "Failures by Region")
+    add_chart(pdf, chart_region_mttr(df), "MTTR by Region")
+    add_chart(pdf, chart_region_heatmap(df), "Regional Heatmap")
+    
+    add_section(pdf, "3. Site Performance")
+    add_chart(pdf, chart_site_failures_per_day(df, 15), "Top 15 Sites Daily Failures")
+    add_chart(pdf, chart_site_mttr(df, 15), "Top 15 Sites by MTTR")
+    
+    add_section(pdf, "4. SLA Compliance Tracking")
+    add_chart(pdf, chart_sla_breaches(df, start_date, end_date), "Daily Uptime vs 99.97% SLA Target")
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf.output(tmp.name)
+        with open(tmp.name, "rb") as f:
+            pdf_bytes = f.read()
+    os.unlink(tmp.name)
+    
+    return pdf_bytes
+
+
 def section_title(label: str) -> None:
     st.markdown(
         f'<div class="section-title"><span class="dot"></span>{label}</div>',
@@ -1550,7 +1605,7 @@ def main():
         st.dataframe(filtered_df.head(1000), use_container_width=True, hide_index=True)
 
         st.markdown("####  ")
-        c1, c2, c3 = st.columns([1, 1, 2])
+        c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
             excel_data = generate_excel(filtered_df)
             st.download_button(
@@ -1571,6 +1626,23 @@ def main():
                 use_container_width=True,
                 key="dl_main_csv"
             )
+        with c3:
+            df_hash = pd.util.hash_pandas_object(filtered_df).sum()
+            
+            if st.button("📄 Prepare PDF Report", use_container_width=True):
+                with st.spinner("Rendering high-res charts to PDF... (Approx. 5-10s)"):
+                    st.session_state.pdf_bytes = generate_pdf_report(filtered_df, start_date, end_date)
+                    st.session_state.pdf_df_hash = df_hash
+                    
+            if st.session_state.get("pdf_bytes") and st.session_state.get("pdf_df_hash") == df_hash:
+                st.download_button(
+                    label="⬇  Download PDF",
+                    data=st.session_state.pdf_bytes,
+                    file_name="NOC_Executive_Report.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="dl_main_pdf"
+                )
 
     # Render system audit reconciler block globally at the bottom
     render_data_audit(df, filtered_df)
