@@ -897,6 +897,7 @@ def apply_filters(df, show_brand=True):
     with st.sidebar.expander("Region & Site", expanded=True):
         selected_regions      = multiselect_filter("Region", "REGION", df, key="flt_region")
         selected_site_types   = multiselect_filter("Site Type", "SITE TYPE", df, key="flt_stype")
+        selected_sites        = multiselect_filter("Site Name", "Site Name", df, key="flt_site")
         
         has_site_class = not (df["Site Classification"].nunique() == 1 and df["Site Classification"].iloc[0] == "Unknown")
         if has_site_class:
@@ -938,6 +939,7 @@ def apply_filters(df, show_brand=True):
         & (df["Date"].dt.date <= end_date)
         & (df["REGION"].isin(selected_regions))
         & (df["SITE TYPE"].isin(selected_site_types))
+        & (df["Site Name"].isin(selected_sites))
         & (df["Site Classification"].isin(selected_classes))
         & (df["Visibility"].isin(selected_visibility))
         & (df["Bucket"].isin(selected_buckets))
