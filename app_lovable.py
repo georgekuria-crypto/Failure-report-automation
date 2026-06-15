@@ -444,13 +444,16 @@ def load_data(file):
         # Multi-pass parser to strictly enforce m/d/y priority for strings while preserving native datetimes
         date_col = df["Date"]
         
+        s_dmy = pd.to_datetime(date_col, format="%d/%m/%Y", errors="coerce")
+        s_dmy2 = pd.to_datetime(date_col, format="%d-%m-%Y", errors="coerce")
+        s_dmy3 = pd.to_datetime(date_col, format="%d/%m/%y", errors="coerce")
+        
         s_mdy = pd.to_datetime(date_col, format="%m/%d/%Y", errors="coerce")
         s_mdy2 = pd.to_datetime(date_col, format="%m-%d-%Y", errors="coerce")
-        s_mdy3 = pd.to_datetime(date_col, format="%m/%d/%y", errors="coerce")
-        s_dmy = pd.to_datetime(date_col, format="%d/%m/%Y", errors="coerce")
-        s_gen = pd.to_datetime(date_col, errors="coerce", format="mixed")
         
-        df["Date"] = s_mdy.combine_first(s_mdy2).combine_first(s_mdy3).combine_first(s_dmy).combine_first(s_gen)
+        s_gen = pd.to_datetime(date_col, errors="coerce", format="mixed", dayfirst=True)
+        
+        df["Date"] = s_dmy.combine_first(s_dmy2).combine_first(s_dmy3).combine_first(s_mdy).combine_first(s_mdy2).combine_first(s_gen)
         
         df = df.dropna(subset=["Date"])
         # Filter out 1970 Unix epoch or 1900 Excel epoch artifacts caused by empty/zero cells
