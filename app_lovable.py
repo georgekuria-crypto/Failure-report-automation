@@ -443,6 +443,8 @@ def load_data(file):
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df = df.dropna(subset=["Date"])
+        # Filter out 1970 Unix epoch or 1900 Excel epoch artifacts caused by empty/zero cells
+        df = df[df["Date"].dt.year > 2000]
 
     numeric_columns = ["MTTR (Hours)", "Total Monthly Hrs"]
 
