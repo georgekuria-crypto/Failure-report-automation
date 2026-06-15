@@ -1379,6 +1379,18 @@ def generate_pdf_report(df, start_date, end_date):
         pdf_obj.set_font("helvetica", style="B", size=12)
         pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
         
+        # Prevent overlapping by placing legend on the right with generous margins
+        fig.update_layout(
+            legend=dict(
+                orientation="v",
+                yanchor="top",
+                y=1,
+                xanchor="left",
+                x=1.02
+            ),
+            margin=dict(l=60, r=200, t=60, b=60)
+        )
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             fig.write_image(tmp.name, format="png", engine="kaleido", width=900, height=450, scale=2)
             pdf_obj.image(tmp.name, x=10, w=190)
@@ -1396,7 +1408,11 @@ def generate_pdf_report(df, start_date, end_date):
     # Build charts
     add_section(pdf, "1. Executive Overview")
     add_chart(pdf, chart_daily_failures(df), "Daily Failures Trend")
+    add_chart(pdf, chart_daily_activity(df), "Daily Failure Activity")
     add_chart(pdf, chart_daily_mttr(df), "Daily MTTR Trend")
+    add_chart(pdf, chart_failures_by_bucket(df), "Failures by Bucket")
+    add_chart(pdf, chart_mttr_by_bucket(df), "MTTR by Bucket")
+    add_chart(pdf, chart_mttr_visibility_sitetype(df), "MTTR by Visibility & Site Type")
     
     add_section(pdf, "2. Regional Analysis")
     add_chart(pdf, chart_failures_by_region(df), "Failures by Region")
@@ -1406,9 +1422,25 @@ def generate_pdf_report(df, start_date, end_date):
     add_section(pdf, "3. Site Performance")
     add_chart(pdf, chart_site_failures_per_day(df, 15), "Top 15 Sites Daily Failures")
     add_chart(pdf, chart_site_mttr(df, 15), "Top 15 Sites by MTTR")
+    add_chart(pdf, chart_site_failures(df, 15), "Top 15 Sites by Failure Count")
     
     add_section(pdf, "4. SLA Compliance Tracking")
     add_chart(pdf, chart_sla_breaches(df, start_date, end_date), "Daily Uptime vs 99.97% SLA Target")
+    
+    present_dynamic = [c for c in ["County", "Vendor", "Alarm Type", "Failure Category"] if c in df.columns]
+    if present_dynamic:
+        add_section(pdf, "5. Custom Attributes Analysis")
+        for col in present_dynamic:
+            data = aggregate_sum(df, col)
+            fig = px.bar(
+                data, x=col, y="MTTR (Hours)", color=col,
+                text="MTTR (Hours)",
+                color_discrete_sequence=CHART_PALETTE,
+                title=f"Total MTTR by {col}"
+            )
+            fig.update_layout(showlegend=False)
+            fig = polish_figure(format_bar_text(style_figure(fig)))
+            add_chart(pdf, fig, f"Total MTTR by {col}")
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
