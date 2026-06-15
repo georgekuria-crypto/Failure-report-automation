@@ -979,7 +979,7 @@ def apply_filters(df, show_brand=True):
     st.sidebar.metric("Regions",          filtered_df["REGION"].nunique())
     st.sidebar.metric("Sites",            filtered_df["Site Name"].nunique())
 
-    return filtered_df
+    return filtered_df, start_date, end_date
 
 
 # =========================================================
@@ -1426,7 +1426,7 @@ def main():
         return
 
     # Apply filters dynamically (using unified function, no brand header duplicate)
-    filtered_df = apply_filters(df, show_brand=False)
+    filtered_df, start_date, end_date = apply_filters(df, show_brand=False)
 
     if filtered_df.empty:
         render_hero(None)
