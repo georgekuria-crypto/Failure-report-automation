@@ -441,7 +441,7 @@ def load_data(file):
             
     # Inject defaults for structural columns that might be missing in some vendor sheets
     if "Date" in df.columns:
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df = df.dropna(subset=["Date"])
 
     numeric_columns = ["MTTR (Hours)", "Total Monthly Hrs"]
