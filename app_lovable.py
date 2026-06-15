@@ -441,7 +441,7 @@ def load_data(file):
             
     # Inject defaults for structural columns that might be missing in some vendor sheets
     if "Date" in df.columns:
-        df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.dropna(subset=["Date"])
         # Filter out 1970 Unix epoch or 1900 Excel epoch artifacts caused by empty/zero cells
         df = df[df["Date"].dt.year > 2000]
