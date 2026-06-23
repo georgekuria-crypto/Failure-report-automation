@@ -434,6 +434,8 @@ def load_data(file):
         "Site Type": "SITE TYPE",
         "TOTAL DOWN TIME (HOURS)": "MTTR (Hours)",
         "TOTAL DOWNTIME(HOURS)": "MTTR (Hours)",
+        "total downtime(hours)": "MTTR (Hours)",
+        "total downtime (hours)": "MTTR (Hours)",
         "BHT (HOURS)": "MTTR (Hours)",
         "BHT ( HOURS)": "MTTR (Hours)",
     }
