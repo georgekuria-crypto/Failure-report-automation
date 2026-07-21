@@ -1140,6 +1140,7 @@ def chart_daily_failures(df):
         data, x="Date", y="Failure Count",
         title="Daily Failure Count",
         color_discrete_sequence=[THEME["cyan"]],
+        markers=True,
     )
     fig.update_traces(
         fill="tozeroy", line=dict(width=3, color=THEME["cyan"]),
@@ -1155,6 +1156,13 @@ def chart_daily_mttr(df):
         data, x="Date", y="MTTR (Hours)", markers=True,
         title="Daily MTTR Trend",
         color_discrete_sequence=[THEME["electric"]],
+    )
+    fig.add_hline(
+        y=2.5, 
+        line_dash="dash", 
+        line_color="red", 
+        annotation_text="Threshold (2.5 hrs)", 
+        annotation_position="bottom right"
     )
     return polish_figure(style_figure(fig))
 
@@ -1272,7 +1280,9 @@ def chart_mttr_visibility_sitetype(df):
         data, x="SITE TYPE", y="MTTR (Hours)", color="Visibility", barmode="group",
         color_discrete_sequence=CHART_PALETTE,
         title="Average MTTR by Site Type & Visibility",
+        text="MTTR (Hours)",
     )
+    fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
     return polish_figure(style_figure(fig))
 
 

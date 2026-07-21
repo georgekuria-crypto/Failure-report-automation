@@ -378,6 +378,13 @@ def chart_daily_mttr(df):
         markers=True,
         title="Daily MTTR Trend",
     )
+    fig.add_hline(
+        y=2.5, 
+        line_dash="dash", 
+        line_color="red", 
+        annotation_text="Threshold (2.5 hrs)", 
+        annotation_position="bottom right"
+    )
 
     return style_figure(fig)
 
