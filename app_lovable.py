@@ -1169,6 +1169,7 @@ def chart_daily_failures(df):
         fill="tozeroy", line=dict(width=3, color=THEME["cyan"]),
         fillcolor="rgba(34,211,238,0.18)",
     )
+    fig.update_yaxes(dtick=5)
     return polish_figure(style_figure(fig))
 
 
@@ -1187,6 +1188,7 @@ def chart_daily_mttr(df):
         annotation_text="Threshold (2.5 hrs)", 
         annotation_position="bottom right"
     )
+    fig.update_yaxes(dtick=5)
     return polish_figure(style_figure(fig))
 
 
@@ -1211,8 +1213,8 @@ def chart_daily_activity(df):
     )
     fig.update_layout(
         title="Daily Failures vs MTTR",
-        yaxis=dict(title="Failures"),
-        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="right"),
+        yaxis=dict(title="Failures", dtick=5),
+        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="right", dtick=5),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return polish_figure(style_figure(fig))
