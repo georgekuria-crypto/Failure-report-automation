@@ -1458,15 +1458,19 @@ def chart_sla_breaches(df, start_date=None, end_date=None):
         
         data = pd.merge(full_grid, data, on=["Date", "SITE TYPE"], how="left").fillna({"MTTR (Hours)": 0})
         
+        TOTAL_SITES = 575
+        
         def calculate_uptime(row):
             stype = str(row["SITE TYPE"]).strip().upper()
             if stype == "DG":
-                total_hours = 306 * 24
+                # 320 DG sites * 24 hours = 7680 site-hours/day
+                total_hours = 320 * 24
             elif stype == "NON-DG":
-                total_hours = 243 * 24
+                # 255 NON-DG sites * 24 hours = 6120 site-hours/day
+                total_hours = 255 * 24
             else:
-                # Fallback for unexpected site types
-                total_hours = 243 * 24 
+                # Fallback based on average ratio (255 sites)
+                total_hours = 255 * 24 
             
             return 100 - (row["MTTR (Hours)"] / total_hours) * 100
             
@@ -1487,8 +1491,8 @@ def chart_sla_breaches(df, start_date=None, end_date=None):
         
         data = pd.merge(all_dates, data, on="Date", how="left").fillna({"MTTR (Hours)": 0})
         
-        # 549 sites * 24 hours = 13176 total hours per day
-        data["Uptime (%)"] = 100 - (data["MTTR (Hours)"] / 13176) * 100
+        # 575 sites * 24 hours = 13800 total hours per day
+        data["Uptime (%)"] = 100 - (data["MTTR (Hours)"] / (575 * 24)) * 100
         
         fig = px.line(
             data, x="Date", y="Uptime (%)", markers=True,
