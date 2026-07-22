@@ -1424,11 +1424,11 @@ def generate_pdf_report(df, start_date, end_date):
                 xanchor="left",
                 x=1.02
             ),
-            margin=dict(l=60, r=200, t=60, b=60)
+            margin=dict(l=60, r=200, t=60, b=140)
         )
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            fig.write_image(tmp.name, format="png", engine="kaleido", width=900, height=450, scale=2)
+            fig.write_image(tmp.name, format="png", engine="kaleido", width=1400, height=550, scale=2)
             pdf_obj.image(tmp.name, x=10, w=190)
         os.unlink(tmp.name)
         pdf_obj.ln(5)
