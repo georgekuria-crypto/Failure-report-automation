@@ -314,7 +314,7 @@ def create_outage_hour_heatmap(df: pd.DataFrame) -> go.Figure:
     return style_figure(fig, showgrid=False)
 
 
-def create_kenya_map(df: pd.DataFrame, metric: str = "failure_count") -> Optional[folium.Map]:
+def create_kenya_map(df: pd.DataFrame, metric: str = "failure_count") -> Optional[object]:
     """Create interactive Kenya regional outage map."""
     
     if not FOLIUM_AVAILABLE:

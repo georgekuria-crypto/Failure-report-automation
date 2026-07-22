@@ -1412,28 +1412,79 @@ def generate_pdf_report(df, start_date, end_date):
     pdf.set_auto_page_break(auto=True, margin=15)
     
     def add_chart(pdf_obj, fig, title):
-        # Prevent overlapping by placing legend on the right with generous margins
+        # Create a copy/clone of layout settings for PDF export (High-contrast light theme)
         fig.update_layout(
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#ffffff",
+            font=dict(
+                family="Helvetica, Arial, sans-serif",
+                color="#0f172a",
+                size=12
+            ),
+            title=dict(
+                font=dict(size=14, color="#0f172a", family="Helvetica"),
+                x=0.01,
+                xanchor="left"
+            ),
             legend=dict(
                 orientation="v",
                 yanchor="top",
                 y=1,
                 xanchor="left",
-                x=1.02
+                x=1.02,
+                font=dict(color="#0f172a", size=10),
+                bgcolor="#f8fafc",
+                bordercolor="#cbd5e1",
+                borderwidth=1
             ),
             margin=dict(l=60, r=200, t=60, b=140)
         )
+        fig.update_xaxes(
+            gridcolor="#e2e8f0",
+            zerolinecolor="#cbd5e1",
+            tickfont=dict(color="#334155", size=10),
+            title_font=dict(color="#0f172a", size=11)
+        )
+        fig.update_yaxes(
+            gridcolor="#e2e8f0",
+            zerolinecolor="#cbd5e1",
+            tickfont=dict(color="#334155", size=10),
+            title_font=dict(color="#0f172a", size=11)
+        )
+
+        # Ensure traces (area fills, heatmaps, lines) are vibrant & crisp on white PDF paper
+        for trace in getattr(fig, "data", []):
+            if hasattr(trace, "fillcolor") and trace.fillcolor:
+                if "0.18" in str(trace.fillcolor) or "transparent" in str(trace.fillcolor):
+                    trace.fillcolor = "rgba(6, 182, 212, 0.35)"
+            if hasattr(trace, "textfont") and trace.textfont:
+                trace.textfont.color = "#0f172a"
+
+        if hasattr(fig.layout, "yaxis2") and fig.layout.yaxis2:
+            fig.update_layout(
+                yaxis2=dict(
+                    title_font=dict(color="#0f172a", size=11),
+                    tickfont=dict(color="#334155", size=10),
+                    gridcolor="#e2e8f0"
+                )
+            )
+
+        if hasattr(fig.layout, "annotations") and fig.layout.annotations:
+            for ann in fig.layout.annotations:
+                if hasattr(ann, "font") and ann.font:
+                    ann.font.color = "#dc2626"
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            # Kaleido sometimes fails silently on Windows (cold start or complex charts), yielding 0-byte or blank images
-            # Retry up to 3 times if the file size indicates a blank image (< 10KB)
             success = False
             for attempt in range(3):
-                fig.write_image(tmp.name, format="png", engine="kaleido", width=1400, height=550, scale=2)
-                import time; time.sleep(0.2)
-                if os.path.exists(tmp.name) and os.path.getsize(tmp.name) > 10000:
-                    success = True
-                    break
+                try:
+                    fig.write_image(tmp.name, format="png", width=1400, height=550, scale=2)
+                    import time; time.sleep(0.2)
+                    if os.path.exists(tmp.name) and os.path.getsize(tmp.name) > 5000:
+                        success = True
+                        break
+                except Exception:
+                    import time; time.sleep(0.4)
                     
             if success:
                 with pdf_obj.unbreakable():
