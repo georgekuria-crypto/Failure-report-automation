@@ -1184,9 +1184,11 @@ def chart_daily_mttr(df):
     fig.add_hline(
         y=2.5, 
         line_dash="dash", 
-        line_color="red", 
+        line_color="#ef4444",
+        line_width=1.5, 
         annotation_text="Threshold (2.5 hrs)", 
-        annotation_position="bottom right"
+        annotation_position="top left",
+        annotation=dict(font=dict(color="#ef4444", size=11), yshift=8),
     )
     fig.update_yaxes(dtick=5)
     return polish_figure(style_figure(fig))
@@ -1393,9 +1395,11 @@ def chart_sla_breaches(df, start_date=None, end_date=None):
     fig.add_hline(
         y=99.97,
         line_dash="dash",
-        line_color="red",
+        line_color="#ef4444",
+        line_width=1.5,
         annotation_text="SLA Target (99.97%)",
-        annotation_position="bottom right",
+        annotation_position="top left",
+        annotation=dict(font=dict(color="#ef4444", size=11), yshift=8),
     )
     return polish_figure(style_figure(fig))
 
