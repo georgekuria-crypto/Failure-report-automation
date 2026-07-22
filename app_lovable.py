@@ -1214,13 +1214,16 @@ def chart_daily_activity(df):
         line=dict(color=THEME["cyan"], width=3, shape="spline"),
         marker=dict(size=7, color=THEME["cyan"]),
     )
+    
+    fig = polish_figure(style_figure(fig))
+    
     fig.update_layout(
         title="Daily Failures vs MTTR",
-        yaxis=dict(title="", showticklabels=False, showgrid=False, zeroline=False),
-        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="left", dtick=5),
+        yaxis=dict(title="", showticklabels=False, showgrid=False, zeroline=False, showline=False),
+        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="left", dtick=5, showgrid=True),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
-    return polish_figure(style_figure(fig))
+    return fig
 
 
 def chart_region_mttr(df):
