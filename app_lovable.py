@@ -398,7 +398,13 @@ def polish_figure(fig: go.Figure, *, height: int | None = None) -> go.Figure:
                     break
                     
     if is_date_axis:
-        fig.update_xaxes(tickangle=-90)
+        fig.update_xaxes(
+            tickangle=-90,
+            dtick="86400000.0",
+            tickformat="%d %b %Y",
+            tickfont=dict(size=10, color=THEME["text_muted"]),
+            automargin=True
+        )
     fig.update_yaxes(
         gridcolor="rgba(148,163,184,0.10)",
         zerolinecolor="rgba(148,163,184,0.15)",

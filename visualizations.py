@@ -140,7 +140,13 @@ def style_figure(
                     break
                     
     if is_date_axis:
-        fig.update_xaxes(tickangle=-90)
+        fig.update_xaxes(
+            tickangle=-90,
+            dtick="86400000.0",
+            tickformat="%d %b %Y",
+            tickfont=dict(size=10),
+            automargin=True
+        )
 
     return fig
 
