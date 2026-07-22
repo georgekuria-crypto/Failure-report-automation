@@ -12,13 +12,14 @@ NOTE:
 
 from datetime import datetime
 from io import BytesIO
+import math
+import os
+import tempfile
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import os
-import tempfile
 from fpdf import FPDF
 
 from visualizations import (
@@ -1167,18 +1168,28 @@ def chart_daily_failures(df):
     edate = df["Date"].max().normalize()
     grid = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
     data = pd.merge(grid, data, on="Date", how="left").fillna({"Failure Count": 0})
+    data["Failure Count"] = data["Failure Count"].astype(int)
 
     fig = px.area(
         data, x="Date", y="Failure Count",
         title="Daily Failure Count",
         color_discrete_sequence=[THEME["cyan"]],
         markers=True,
+        text="Failure Count",
     )
     fig.update_traces(
         fill="tozeroy", line=dict(width=3, color=THEME["cyan"]),
         fillcolor="rgba(34,211,238,0.18)",
+        textposition="top center",
+        textfont=dict(size=10, color=THEME["cyan"]),
     )
-    fig.update_yaxes(dtick=5)
+    max_val = int(data["Failure Count"].max()) if not data.empty else 5
+    dtick = 5
+    upper_bound = math.ceil((max_val + 1.5) / dtick) * dtick
+    if upper_bound <= max_val:
+        upper_bound += dtick
+
+    fig.update_yaxes(range=[0, upper_bound], dtick=dtick)
     return polish_figure(style_figure(fig))
 
 
@@ -1193,11 +1204,17 @@ def chart_daily_mttr(df):
     edate = df["Date"].max().normalize()
     grid = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
     data = pd.merge(grid, data, on="Date", how="left").fillna({"MTTR (Hours)": 0})
+    data["Display_MTTR"] = data["MTTR (Hours)"].round(1)
 
     fig = px.line(
         data, x="Date", y="MTTR (Hours)", markers=True,
         title="Daily MTTR Trend",
         color_discrete_sequence=[THEME["electric"]],
+        text="Display_MTTR",
+    )
+    fig.update_traces(
+        textposition="top center",
+        textfont=dict(size=10, color=THEME["electric"]),
     )
     fig.add_hline(
         y=2.5, 
@@ -1208,7 +1225,14 @@ def chart_daily_mttr(df):
         annotation_position="top left",
         annotation=dict(font=dict(color="#ef4444", size=11), yshift=8),
     )
-    fig.update_yaxes(dtick=5)
+    max_val = float(data["MTTR (Hours)"].max()) if not data.empty else 5.0
+    max_val = max(max_val, 2.5)
+    dtick = 5
+    upper_bound = math.ceil((max_val + 1.5) / dtick) * dtick
+    if upper_bound <= max_val:
+        upper_bound += dtick
+
+    fig.update_yaxes(range=[0, upper_bound], dtick=dtick)
     return polish_figure(style_figure(fig))
 
 
@@ -1227,28 +1251,39 @@ def chart_daily_activity(df):
     edate = df["Date"].max().normalize()
     grid = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
     data = pd.merge(grid, data, on="Date", how="left").fillna({"Failure Count": 0, "MTTR (Hours)": 0})
+    data["Failure Count"] = data["Failure Count"].astype(int)
+    data["Display_MTTR"] = data["MTTR (Hours)"].round(1)
 
     fig = go.Figure()
     fig.add_bar(
         x=data["Date"], y=data["Failure Count"], name="Failures",
-        text=data["Failure Count"].astype(int),
+        text=data["Failure Count"],
         textposition="auto",
         textfont=dict(size=11, color="#ffffff"),
         marker=dict(color=THEME["violet"], opacity=0.85),
     )
     fig.add_scatter(
         x=data["Date"], y=data["MTTR (Hours)"], name="MTTR (hrs)",
-        yaxis="y2", mode="lines+markers",
+        yaxis="y2", mode="lines+markers+text",
+        text=data["Display_MTTR"],
+        textposition="top center",
+        textfont=dict(size=10, color=THEME["cyan"]),
         line=dict(color=THEME["cyan"], width=3, shape="spline"),
         marker=dict(size=7, color=THEME["cyan"]),
     )
     
     fig = polish_figure(style_figure(fig))
     
+    max_mttr = float(data["MTTR (Hours)"].max()) if not data.empty else 5.0
+    dtick = 5
+    upper_mttr = math.ceil((max_mttr + 1.5) / dtick) * dtick
+    if upper_mttr <= max_mttr:
+        upper_mttr += dtick
+
     fig.update_layout(
         title="Daily Failures vs MTTR",
         yaxis=dict(title="", showticklabels=False, showgrid=False, zeroline=False, showline=False),
-        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="left", dtick=5, showgrid=True),
+        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="left", dtick=dtick, range=[0, upper_mttr], showgrid=True),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return fig
