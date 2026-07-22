@@ -1217,7 +1217,7 @@ def chart_daily_activity(df):
     fig.update_layout(
         title="Daily Failures vs MTTR",
         yaxis=dict(title="", showticklabels=False, showgrid=False, zeroline=False),
-        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="right", dtick=5),
+        yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="left", dtick=5),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return polish_figure(style_figure(fig))
