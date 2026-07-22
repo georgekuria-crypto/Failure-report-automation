@@ -1412,9 +1412,6 @@ def generate_pdf_report(df, start_date, end_date):
     pdf.set_auto_page_break(auto=True, margin=15)
     
     def add_chart(pdf_obj, fig, title):
-        pdf_obj.set_font("helvetica", style="B", size=12)
-        pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
-        
         # Prevent overlapping by placing legend on the right with generous margins
         fig.update_layout(
             legend=dict(
@@ -1429,9 +1426,12 @@ def generate_pdf_report(df, start_date, end_date):
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             fig.write_image(tmp.name, format="png", engine="kaleido", width=1400, height=550, scale=2)
-            pdf_obj.image(tmp.name, x=10, w=190)
+            with pdf_obj.unbreakable():
+                pdf_obj.set_font("helvetica", style="B", size=12)
+                pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
+                pdf_obj.image(tmp.name, x=10, w=190)
+                pdf_obj.ln(5)
         os.unlink(tmp.name)
-        pdf_obj.ln(5)
         
     def add_section(pdf_obj, section_title):
         pdf_obj.add_page()
