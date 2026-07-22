@@ -1834,7 +1834,7 @@ def main():
 
     with tabs[3]:
         section_title("SLA Compliance Tracking")
-        st.info("Tracking daily network uptime against the 99.97% SLA target. Assumes 13,176 total possible hours per day (549 sites × 24 hours).")
+        st.info("Tracking daily network uptime against the 99.97% SLA target. Assumes 13,800 total possible hours per day (575 sites × 24 hours).")
         render_chart(chart_sla_breaches(filtered_df, start_date, end_date))
 
     if has_dynamic_charts:
