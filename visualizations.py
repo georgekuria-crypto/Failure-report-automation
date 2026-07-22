@@ -147,6 +147,7 @@ def style_figure(
             tickfont=dict(size=10),
             automargin=True
         )
+        fig.update_traces(cliponaxis=False)
 
     return fig
 

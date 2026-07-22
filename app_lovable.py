@@ -1200,6 +1200,7 @@ def chart_daily_failures(df):
         fillcolor="rgba(34,211,238,0.18)",
         textposition="top center",
         textfont=dict(size=10, color=THEME["cyan"]),
+        cliponaxis=False,
     )
     max_val = int(data["Failure Count"].max()) if not data.empty else 5
     dtick = calculate_smart_dtick(max_val)
@@ -1207,7 +1208,11 @@ def chart_daily_failures(df):
     if upper_bound <= max_val:
         upper_bound += dtick
 
+    pad_start = sdate - pd.Timedelta(days=0.75)
+    pad_end = edate + pd.Timedelta(days=0.75)
+
     fig.update_yaxes(range=[0, upper_bound], dtick=dtick)
+    fig.update_xaxes(range=[pad_start, pad_end])
     return polish_figure(style_figure(fig))
 
 
@@ -1233,6 +1238,7 @@ def chart_daily_mttr(df):
     fig.update_traces(
         textposition="top center",
         textfont=dict(size=10, color=THEME["electric"]),
+        cliponaxis=False,
     )
     fig.add_hline(
         y=2.5, 
@@ -1250,7 +1256,11 @@ def chart_daily_mttr(df):
     if upper_bound <= max_val:
         upper_bound += dtick
 
+    pad_start = sdate - pd.Timedelta(days=0.75)
+    pad_end = edate + pd.Timedelta(days=0.75)
+
     fig.update_yaxes(range=[0, upper_bound], dtick=dtick)
+    fig.update_xaxes(range=[pad_start, pad_end])
     return polish_figure(style_figure(fig))
 
 
@@ -1288,6 +1298,7 @@ def chart_daily_activity(df):
         textfont=dict(size=10, color=THEME["cyan"]),
         line=dict(color=THEME["cyan"], width=3, shape="spline"),
         marker=dict(size=7, color=THEME["cyan"]),
+        cliponaxis=False,
     )
     
     fig = polish_figure(style_figure(fig))
@@ -1298,8 +1309,12 @@ def chart_daily_activity(df):
     if upper_mttr <= max_mttr:
         upper_mttr += dtick
 
+    pad_start = sdate - pd.Timedelta(days=0.75)
+    pad_end = edate + pd.Timedelta(days=0.75)
+
     fig.update_layout(
         title="Daily Failures vs MTTR",
+        xaxis=dict(range=[pad_start, pad_end]),
         yaxis=dict(title="", showticklabels=False, showgrid=False, zeroline=False, showline=False),
         yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="left", dtick=dtick, range=[0, upper_mttr], showgrid=True),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
