@@ -1426,6 +1426,7 @@ def generate_pdf_report(df, start_date, end_date):
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             fig.write_image(tmp.name, format="png", engine="kaleido", width=1400, height=550, scale=2)
+            import time; time.sleep(0.1)  # Ensure Kaleido file lock is released
             with pdf_obj.unbreakable():
                 pdf_obj.set_font("helvetica", style="B", size=12)
                 pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
@@ -1448,7 +1449,8 @@ def generate_pdf_report(df, start_date, end_date):
     add_chart(pdf, chart_daily_mttr(df), "Daily MTTR Trend")
     add_chart(pdf, chart_failures_by_bucket(df), "Failures by Bucket")
     add_chart(pdf, chart_mttr_by_bucket(df), "MTTR by Bucket")
-    add_chart(pdf, chart_mttr_visibility_sitetype(df), "MTTR by Visibility & Site Type")
+    if "Visibility" in df.columns and "SITE TYPE" in df.columns:
+        add_chart(pdf, chart_mttr_visibility_sitetype(df), "MTTR by Visibility & Site Type")
     
     add_section(pdf, "2. Regional Analysis")
     add_chart(pdf, chart_failures_by_region(df), "Failures by Region")
