@@ -125,6 +125,23 @@ def style_figure(
     fig.update_xaxes(showgrid=showgrid, gridcolor=grid_color, zeroline=False)
     fig.update_yaxes(showgrid=showgrid, gridcolor=grid_color, zeroline=False)
     
+    # Rotate x-axis labels vertically downwards for date charts
+    is_date_axis = False
+    if hasattr(fig.layout, "xaxis") and hasattr(fig.layout.xaxis, "title") and hasattr(fig.layout.xaxis.title, "text"):
+        if fig.layout.xaxis.title.text and "date" in str(fig.layout.xaxis.title.text).lower():
+            is_date_axis = True
+            
+    if not is_date_axis:
+        for trace in fig.data:
+            if hasattr(trace, "x") and trace.x is not None and len(trace.x) > 0:
+                first_x = trace.x[0]
+                if type(first_x).__name__ == "datetime64" or isinstance(first_x, (pd.Timestamp, __import__('datetime').date, __import__('datetime').datetime)):
+                    is_date_axis = True
+                    break
+                    
+    if is_date_axis:
+        fig.update_xaxes(tickangle=-90)
+
     return fig
 
 

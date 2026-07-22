@@ -382,6 +382,23 @@ def polish_figure(fig: go.Figure, *, height: int | None = None) -> go.Figure:
         tickfont=dict(color=THEME["text_muted"]),
         title_font=dict(color=THEME["text_muted"], size=12),
     )
+    
+    # Rotate x-axis labels vertically downwards for date charts
+    is_date_axis = False
+    if hasattr(fig.layout, "xaxis") and hasattr(fig.layout.xaxis, "title") and hasattr(fig.layout.xaxis.title, "text"):
+        if fig.layout.xaxis.title.text and "date" in str(fig.layout.xaxis.title.text).lower():
+            is_date_axis = True
+            
+    if not is_date_axis:
+        for trace in fig.data:
+            if hasattr(trace, "x") and trace.x is not None and len(trace.x) > 0:
+                first_x = trace.x[0]
+                if type(first_x).__name__ == "datetime64" or isinstance(first_x, (pd.Timestamp, __import__('datetime').date, __import__('datetime').datetime)):
+                    is_date_axis = True
+                    break
+                    
+    if is_date_axis:
+        fig.update_xaxes(tickangle=-90)
     fig.update_yaxes(
         gridcolor="rgba(148,163,184,0.10)",
         zerolinecolor="rgba(148,163,184,0.15)",
