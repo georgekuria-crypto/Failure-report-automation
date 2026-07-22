@@ -1203,6 +1203,9 @@ def chart_daily_activity(df):
     fig = go.Figure()
     fig.add_bar(
         x=data["Date"], y=data["Failure Count"], name="Failures",
+        text=data["Failure Count"],
+        textposition="auto",
+        textfont=dict(size=11, color="#ffffff"),
         marker=dict(color=THEME["violet"], opacity=0.85),
     )
     fig.add_scatter(
@@ -1213,7 +1216,7 @@ def chart_daily_activity(df):
     )
     fig.update_layout(
         title="Daily Failures vs MTTR",
-        yaxis=dict(title="Failures", dtick=5),
+        yaxis=dict(title="", showticklabels=False, showgrid=False, zeroline=False),
         yaxis2=dict(title="MTTR (Hours)", overlaying="y", side="right", dtick=5),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
