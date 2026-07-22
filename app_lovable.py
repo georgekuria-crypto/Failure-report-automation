@@ -1157,6 +1157,24 @@ def chart_mttr_by_bucket(df):
     return polish_figure(format_bar_text(style_figure(fig)))
 
 
+def calculate_smart_dtick(max_val: float, target_ticks: int = 6) -> int:
+    """Calculate a clean, human-readable tick step to avoid overlapping Y-axis labels."""
+    if max_val <= 0:
+        return 1
+    raw_step = max_val / target_ticks
+    magnitude = 10 ** math.floor(math.log10(max(raw_step, 1e-3)))
+    residual = raw_step / magnitude
+    if residual <= 1.2:
+        nice_step = 1 * magnitude
+    elif residual <= 2.5:
+        nice_step = 2 * magnitude
+    elif residual <= 6:
+        nice_step = 5 * magnitude
+    else:
+        nice_step = 10 * magnitude
+    return max(1, int(nice_step))
+
+
 def chart_daily_failures(df):
     if df.empty:
         return polish_figure(style_figure(px.area(title="Daily Failure Count")))
@@ -1184,8 +1202,8 @@ def chart_daily_failures(df):
         textfont=dict(size=10, color=THEME["cyan"]),
     )
     max_val = int(data["Failure Count"].max()) if not data.empty else 5
-    dtick = 5
-    upper_bound = math.ceil((max_val + 1.5) / dtick) * dtick
+    dtick = calculate_smart_dtick(max_val)
+    upper_bound = math.ceil((max_val * 1.15) / dtick) * dtick
     if upper_bound <= max_val:
         upper_bound += dtick
 
@@ -1227,8 +1245,8 @@ def chart_daily_mttr(df):
     )
     max_val = float(data["MTTR (Hours)"].max()) if not data.empty else 5.0
     max_val = max(max_val, 2.5)
-    dtick = 5
-    upper_bound = math.ceil((max_val + 1.5) / dtick) * dtick
+    dtick = calculate_smart_dtick(max_val)
+    upper_bound = math.ceil((max_val * 1.15) / dtick) * dtick
     if upper_bound <= max_val:
         upper_bound += dtick
 
@@ -1258,7 +1276,7 @@ def chart_daily_activity(df):
     fig.add_bar(
         x=data["Date"], y=data["Failure Count"], name="Failures",
         text=data["Failure Count"],
-        textposition="auto",
+        textposition="inside",
         textfont=dict(size=11, color="#ffffff"),
         marker=dict(color=THEME["violet"], opacity=0.85),
     )
@@ -1275,8 +1293,8 @@ def chart_daily_activity(df):
     fig = polish_figure(style_figure(fig))
     
     max_mttr = float(data["MTTR (Hours)"].max()) if not data.empty else 5.0
-    dtick = 5
-    upper_mttr = math.ceil((max_mttr + 1.5) / dtick) * dtick
+    dtick = calculate_smart_dtick(max_mttr)
+    upper_mttr = math.ceil((max_mttr * 1.15) / dtick) * dtick
     if upper_mttr <= max_mttr:
         upper_mttr += dtick
 
