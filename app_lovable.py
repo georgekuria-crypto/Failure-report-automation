@@ -1487,11 +1487,15 @@ def generate_pdf_report(df, start_date, end_date):
                     import time; time.sleep(0.4)
                     
             if success:
-                with pdf_obj.unbreakable():
-                    pdf_obj.set_font("helvetica", style="B", size=12)
-                    pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
-                    pdf_obj.image(tmp.name, x=10, w=190)
-                    pdf_obj.ln(5)
+                # Manual page break check to prevent splitting title & image (fixes fpdf2 unbreakable bug)
+                needed_height = 95  # 10mm title + ~75mm image + 10mm spacing
+                if pdf_obj.h - pdf_obj.b_margin - pdf_obj.get_y() < needed_height:
+                    pdf_obj.add_page()
+
+                pdf_obj.set_font("helvetica", style="B", size=12)
+                pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
+                pdf_obj.image(tmp.name, x=10, w=190)
+                pdf_obj.ln(5)
             else:
                 pdf_obj.set_font("helvetica", style="I", size=10)
                 pdf_obj.cell(0, 10, f"[Image failed to render: {title}]", align="C", new_x="LMARGIN", new_y="NEXT")
