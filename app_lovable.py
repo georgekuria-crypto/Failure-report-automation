@@ -1425,13 +1425,25 @@ def generate_pdf_report(df, start_date, end_date):
         )
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            fig.write_image(tmp.name, format="png", engine="kaleido", width=1400, height=550, scale=2)
-            import time; time.sleep(0.1)  # Ensure Kaleido file lock is released
-            with pdf_obj.unbreakable():
-                pdf_obj.set_font("helvetica", style="B", size=12)
-                pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
-                pdf_obj.image(tmp.name, x=10, w=190)
-                pdf_obj.ln(5)
+            # Kaleido sometimes fails silently on Windows (cold start or complex charts), yielding 0-byte or blank images
+            # Retry up to 3 times if the file size indicates a blank image (< 10KB)
+            success = False
+            for attempt in range(3):
+                fig.write_image(tmp.name, format="png", engine="kaleido", width=1400, height=550, scale=2)
+                import time; time.sleep(0.2)
+                if os.path.exists(tmp.name) and os.path.getsize(tmp.name) > 10000:
+                    success = True
+                    break
+                    
+            if success:
+                with pdf_obj.unbreakable():
+                    pdf_obj.set_font("helvetica", style="B", size=12)
+                    pdf_obj.cell(0, 10, title, align="C", new_x="LMARGIN", new_y="NEXT")
+                    pdf_obj.image(tmp.name, x=10, w=190)
+                    pdf_obj.ln(5)
+            else:
+                pdf_obj.set_font("helvetica", style="I", size=10)
+                pdf_obj.cell(0, 10, f"[Image failed to render: {title}]", align="C", new_x="LMARGIN", new_y="NEXT")
         os.unlink(tmp.name)
         
     def add_section(pdf_obj, section_title):
