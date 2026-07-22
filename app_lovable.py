@@ -1287,15 +1287,13 @@ def chart_daily_activity(df):
         x=data["Date"], y=data["Failure Count"], name="Failures",
         text=data["Failure Count"],
         textposition="inside",
+        insidetextanchor="middle",
         textfont=dict(size=11, color="#ffffff"),
         marker=dict(color=THEME["violet"], opacity=0.85),
     )
     fig.add_scatter(
         x=data["Date"], y=data["MTTR (Hours)"], name="MTTR (hrs)",
-        yaxis="y2", mode="lines+markers+text",
-        text=data["Display_MTTR"],
-        textposition="top center",
-        textfont=dict(size=10, color=THEME["cyan"]),
+        yaxis="y2", mode="lines+markers",
         line=dict(color=THEME["cyan"], width=3, shape="spline"),
         marker=dict(size=7, color=THEME["cyan"]),
         cliponaxis=False,
