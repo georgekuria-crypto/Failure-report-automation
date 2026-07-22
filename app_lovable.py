@@ -1157,8 +1157,17 @@ def chart_mttr_by_bucket(df):
 
 
 def chart_daily_failures(df):
+    if df.empty:
+        return polish_figure(style_figure(px.area(title="Daily Failure Count")))
+
     data = df.groupby(df["Date"].dt.date).size().reset_index(name="Failure Count")
     data["Date"] = pd.to_datetime(data["Date"])
+
+    sdate = df["Date"].min().normalize()
+    edate = df["Date"].max().normalize()
+    grid = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
+    data = pd.merge(grid, data, on="Date", how="left").fillna({"Failure Count": 0})
+
     fig = px.area(
         data, x="Date", y="Failure Count",
         title="Daily Failure Count",
@@ -1174,8 +1183,17 @@ def chart_daily_failures(df):
 
 
 def chart_daily_mttr(df):
+    if df.empty:
+        return polish_figure(style_figure(px.line(title="Daily MTTR Trend")))
+
     data = df.groupby(df["Date"].dt.date)["MTTR (Hours)"].sum().reset_index()
     data["Date"] = pd.to_datetime(data["Date"])
+
+    sdate = df["Date"].min().normalize()
+    edate = df["Date"].max().normalize()
+    grid = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
+    data = pd.merge(grid, data, on="Date", how="left").fillna({"MTTR (Hours)": 0})
+
     fig = px.line(
         data, x="Date", y="MTTR (Hours)", markers=True,
         title="Daily MTTR Trend",
@@ -1195,6 +1213,9 @@ def chart_daily_mttr(df):
 
 
 def chart_daily_activity(df):
+    if df.empty:
+        return polish_figure(style_figure(go.Figure()))
+
     data = (
         df.groupby(df["Date"].dt.date)
         .agg({"MTTR (Hours)": "sum", "Site Name": "count"})
@@ -1202,10 +1223,15 @@ def chart_daily_activity(df):
     )
     data["Date"] = pd.to_datetime(data["Date"])
 
+    sdate = df["Date"].min().normalize()
+    edate = df["Date"].max().normalize()
+    grid = pd.DataFrame({"Date": pd.date_range(start=sdate, end=edate, freq="D")})
+    data = pd.merge(grid, data, on="Date", how="left").fillna({"Failure Count": 0, "MTTR (Hours)": 0})
+
     fig = go.Figure()
     fig.add_bar(
         x=data["Date"], y=data["Failure Count"], name="Failures",
-        text=data["Failure Count"],
+        text=data["Failure Count"].astype(int),
         textposition="auto",
         textfont=dict(size=11, color="#ffffff"),
         marker=dict(color=THEME["violet"], opacity=0.85),
@@ -1320,11 +1346,23 @@ def chart_mttr_visibility_sitetype(df):
 
 
 def chart_site_failures_per_day(df, top_n=15):
+    if df.empty:
+        return polish_figure(style_figure(px.bar(title=f"Daily Failures for Top {top_n} Sites")))
+
     top_sites = df.groupby("Site Name").size().nlargest(top_n).index
     filtered = df[df["Site Name"].isin(top_sites)]
     
     data = filtered.groupby([filtered["Date"].dt.date, "Site Name"]).size().reset_index(name="Failure Count")
     data["Date"] = pd.to_datetime(data["Date"])
+
+    sdate = df["Date"].min().normalize()
+    edate = df["Date"].max().normalize()
+    all_dates = pd.date_range(start=sdate, end=edate, freq="D")
+    
+    idx = pd.MultiIndex.from_product([all_dates, top_sites], names=["Date", "Site Name"])
+    full_grid = pd.DataFrame(index=idx).reset_index()
+    
+    data = pd.merge(full_grid, data, on=["Date", "Site Name"], how="left").fillna({"Failure Count": 0})
     
     fig = px.bar(
         data, x="Date", y="Failure Count", color="Site Name",
